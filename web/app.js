@@ -65,8 +65,8 @@
           if (!has) return m;
           return `<button type="button" class="citation-ref" data-cite="${idx}" aria-label="查看引用 ${idx}">[${idx}]</button>`;
         });
-        if (/^\s*[-*]\s+/.test(line)) return `<div class="md-li">${html.replace(/^\s*[-*]\s+/, "")}</div>`;
-        return `<div class="md-p">${html}</div>`;
+        if (/^\s*[-*]\s+/.test(line)) return `<p class="md-li">${html.replace(/^\s*[-*]\s+/, "")}</p>`;
+        return `<p>${html}</p>`;
       })
       .join("");
   }
@@ -96,40 +96,60 @@
     els.welcome.hidden = !show;
   }
 
+  function setBubbleContent(wrap, content, citations) {
+    const bubble = wrap.querySelector(".bubble");
+    if (!bubble) return;
+    bubble.innerHTML = `<div class="msg-text">${renderContent(content, citations)}</div>`;
+  }
+
   function messageElement(role, content, citations, id, status) {
     const wrap = document.createElement("article");
-    wrap.className = `msg msg-${role}`;
+    wrap.className = `message message-${role}`;
     if (id) wrap.dataset.id = id;
+
     const avatar = document.createElement("div");
-    avatar.className = `msg-avatar ${role === "assistant" ? "assistant" : "user"}`;
-    avatar.textContent = role === "assistant" ? "猫" : "我";
-    const body = document.createElement("div");
-    body.className = "msg-body";
+    avatar.className = "message-avatar";
+    avatar.innerHTML = role === "assistant"
+      ? '<svg viewBox="0 0 32 32" aria-hidden="true"><use href="#i-cat"/></svg>'
+      : "我";
+
+    const main = document.createElement("div");
+    main.className = "message-main";
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    bubble.innerHTML = renderContent(content, citations);
-    body.appendChild(bubble);
+    main.appendChild(bubble);
 
     if (role === "assistant") {
-      const meta = document.createElement("div");
-      meta.className = "msg-meta";
-      const feedback = document.createElement("div");
-      feedback.className = "feedback";
-      feedback.innerHTML = `
-        <button type="button" class="feedback-btn" data-rating="up" aria-label="有帮助">👍</button>
-        <button type="button" class="feedback-btn" data-rating="down" aria-label="没帮助">👎</button>
-        <button type="button" class="feedback-btn" data-copy aria-label="复制">复制</button>
-        <span class="msg-state">${status === "waiting_user" ? "等待选择" : ""}</span>`;
-      meta.appendChild(feedback);
-      body.appendChild(meta);
+      const footer = document.createElement("div");
+      footer.className = "msg-footer";
+      const state = document.createElement("span");
+      state.className = "msg-status";
+      state.textContent = status === "waiting_user" ? "等待选择" : "";
+      const actions = document.createElement("div");
+      actions.className = "msg-actions";
+      actions.innerHTML = `
+        <button type="button" class="msg-action" data-rating="up" aria-label="有帮助" title="有帮助">
+          <svg class="icon" aria-hidden="true"><use href="#i-thumb-up"/></svg>
+        </button>
+        <button type="button" class="msg-action is-down" data-rating="down" aria-label="没帮助" title="没帮助">
+          <svg class="icon" aria-hidden="true"><use href="#i-thumb-down"/></svg>
+        </button>
+        <button type="button" class="msg-action" data-copy aria-label="复制" title="复制">
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>
+        </button>`;
+      footer.appendChild(state);
+      footer.appendChild(actions);
+      main.appendChild(footer);
       wrap.appendChild(avatar);
-      wrap.appendChild(body);
+      wrap.appendChild(main);
       wrap._citations = citations || [];
       wrap._content = content || "";
+      setBubbleContent(wrap, content, citations || []);
       bindMessageActions(wrap);
     } else {
+      wrap.appendChild(main);
       wrap.appendChild(avatar);
-      wrap.appendChild(body);
+      setBubbleContent(wrap, content, []);
     }
     return wrap;
   }
@@ -138,8 +158,8 @@
     wrap.querySelectorAll(".citation-ref").forEach((btn) => {
       btn.addEventListener("click", () => openCitation(Number(btn.dataset.cite), wrap._citations || []));
     });
-    const up = wrap.querySelector('[data-rating="up"]');
-    const down = wrap.querySelector('[data-rating="down"]');
+    const up = wrap.querySelector('.msg-action[data-rating="up"]');
+    const down = wrap.querySelector('.msg-action[data-rating="down"]');
     const copy = wrap.querySelector("[data-copy]");
     if (up) up.addEventListener("click", () => sendFeedback(wrap, "up"));
     if (down) down.addEventListener("click", () => {
@@ -198,9 +218,9 @@
   function renderInterrupt(payload) {
     state.pendingInterrupt = payload;
     const wrap = document.createElement("article");
-    wrap.className = "msg msg-assistant interrupt-card-wrap";
+    wrap.className = "message message-assistant interrupt-card-wrap";
     const body = document.createElement("div");
-    body.className = "msg-body";
+    body.className = "message-main";
     const card = document.createElement("div");
     card.className = "interrupt-card";
     if (payload.type === "order_select") {
@@ -331,8 +351,7 @@
       const msg = document.getElementById(`msg-${state.assistantId}`);
       if (msg) {
         msg._citations = [...state.citations.values()];
-        const bubble = msg.querySelector(".bubble");
-        bubble.innerHTML = renderContent(state.currentText, msg._citations);
+        setBubbleContent(msg, state.currentText, msg._citations);
         bindMessageActions(msg);
       }
     } else if (event === "token") {
@@ -340,8 +359,7 @@
       const msg = document.getElementById(`msg-${state.assistantId}`);
       if (msg) {
         msg._content = state.currentText;
-        const bubble = msg.querySelector(".bubble");
-        bubble.innerHTML = renderContent(state.currentText, [...state.citations.values()]);
+        setBubbleContent(msg, state.currentText, [...state.citations.values()]);
         bindMessageActions(msg);
         scrollBottom();
       }
@@ -355,9 +373,9 @@
       const msg = document.getElementById(`msg-${state.assistantId}`);
       if (msg) {
         msg._content = state.currentText;
-        const status = msg.querySelector(".msg-state");
+        const status = msg.querySelector(".msg-status");
         if (status) status.textContent = data.receipt ? "已提交" : "";
-        msg.querySelector(".bubble").innerHTML = renderContent(state.currentText, [...state.citations.values()]);
+        setBubbleContent(msg, state.currentText, [...state.citations.values()]);
         bindMessageActions(msg);
       }
       toast(data.receipt ? `退款申请 ${data.receipt.refund_id} 已提交` : "回答完成");

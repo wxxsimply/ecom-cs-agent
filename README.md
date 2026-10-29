@@ -2,6 +2,10 @@
 
 一个可本地运行的电商客服演示：FastAPI + LangGraph + SQLite + 本地 BM25 检索 + SSE 对话页。
 
+![对话气泡效果](docs/assets/ui-answer.png)
+
+![退款确认与回执](docs/assets/ui-refund.png)
+
 ## 快速启动
 
 ```powershell
@@ -26,8 +30,9 @@ docker compose up --build
 - SSE 对话：`meta → citation → token → done`；退款/订单选择使用 `interrupt`，`/chat/resume` 继续。
 - 订单/物流查询；退款资格、金额、确认令牌、退款申请；取消/未支付/转人工出口。
 - SQLite 会话/消息/订单/退款/工单/反馈/中断/确认令牌；LangGraph `SqliteSaver` 支持同进程/重启恢复。
-- 引用展示、点赞点踩、会话历史、订单选择卡、确认卡、只读指标 API。
-- 自测：`python -m pytest -q`（11 个测试）。
+- 对话气泡（助手/用户）、圆形点赞/点踩/复制按钮、引用展示、会话历史、订单选择卡、确认卡、只读指标 API。
+- 测试账户 `u_demo` 内置 12 笔订单，覆盖待支付/已支付/已发货/已签收/已取消/已退款/高金额/特殊品类/超期。
+- 自测：`python -m pytest -q`（12 个测试）。
 
 ## 当前降级/边界
 

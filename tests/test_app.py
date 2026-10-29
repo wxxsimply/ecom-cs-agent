@@ -135,3 +135,16 @@ def test_pii_is_scrubbed_in_history():
         user_text = next(m["content"] for m in history["items"] if m["role"] == "user")
         assert "13812345678" not in user_text
         assert "138****0000" in user_text
+
+
+def test_ui_assets_and_demo_data_coverage():
+    with TestClient(app) as client:
+        root = client.get("/")
+        assert root.status_code == 200
+        assert "小猫" in root.text
+        assert client.get("/app.js").status_code == 200
+        assert client.get("/styles.css").status_code == 200
+        orders = client.get("/api/v1/orders", headers={"X-User-Id": "u_demo"}).json()["items"]
+        assert len(orders) >= 10
+        statuses = {o["status"] for o in orders}
+        assert {"delivered", "paid", "shipped", "refunded", "pending_payment"} <= statuses

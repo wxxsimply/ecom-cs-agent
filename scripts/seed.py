@@ -2,96 +2,83 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from sqlalchemy import select
+
 from app.db import SessionLocal, init_db, utcnow
 from app.models import Order, OrderItem, Shipment, User
+
+
+ORDER_SEED = [
+    # id, title, status, paid, goods, shipping, region, delivered_days_ago, item_category, returnable
+    ("1001", "无线耳机", "delivered", 299.0, 299.0, 0.0, "上海", 3, "digital", True),
+    ("1002", "保温杯", "paid", 89.0, 83.0, 6.0, "上海", None, "home", True),
+    ("1003", "机械键盘", "shipped", 159.0, 153.0, 6.0, "新疆", None, "digital", True),
+    ("1004", "高端显示器", "delivered", 699.0, 699.0, 0.0, "上海", 2, "digital", True),
+    ("1005", "夏季连衣裙", "delivered", 129.0, 129.0, 0.0, "杭州", 20, "clothing", True),
+    ("1006", "运动鞋", "delivered", 239.0, 233.0, 6.0, "上海", 6, "shoes", True),
+    ("1007", "定制刻字项链", "delivered", 399.0, 399.0, 0.0, "上海", 4, "custom", False),
+    ("1008", "便携充电宝", "cancelled", 99.0, 99.0, 0.0, "上海", None, "digital", True),
+    ("1009", "蓝牙音箱", "refunded", 199.0, 199.0, 0.0, "上海", 12, "digital", True),
+    ("1010", "旗舰手机", "paid", 699.0, 693.0, 6.0, "上海", None, "digital", True),
+    ("1011", "冬季羽绒服", "shipped", 459.0, 453.0, 6.0, "哈尔滨", None, "clothing", True),
+    ("1012", "预售款背包", "pending_payment", 159.0, 153.0, 6.0, "上海", None, "bag", True),
+]
 
 
 def seed() -> None:
     init_db()
     db = SessionLocal()
     try:
-        if db.get(User, "u_demo") is None:
+        user = db.get(User, "u_demo")
+        if user is None:
             db.add(User(id="u_demo", external_id="u_demo", nickname="小猫用户", member_level="gold", points=1200))
+        else:
+            user.nickname = "小猫用户"
+            user.member_level = "gold"
+            user.points = max(user.points or 0, 1200)
 
-        if db.get(Order, "1001") is None:
-            db.add(
-                Order(
-                    id="1001",
-                    order_no="1001",
-                    user_id="u_demo",
-                    title="无线耳机",
-                    status="delivered",
-                    paid_amount=299.0,
-                    goods_paid=299.0,
-                    shipping_fee=0.0,
-                    points_used=0,
-                    region="上海",
-                    delivered_at=utcnow() - timedelta(days=3),
-                    items=[OrderItem(product_id="p_earphone", title="无线耳机", qty=1, unit_price=299.0, category="digital", returnable=True)],
+        for idx, (oid, title, status, paid, goods, shipping, region, delivered_days, category, returnable) in enumerate(ORDER_SEED):
+            existing = db.get(Order, oid)
+            if existing is None:
+                delivered_at = utcnow() - timedelta(days=delivered_days) if delivered_days is not None else None
+                db.add(
+                    Order(
+                        id=oid,
+                        order_no=oid,
+                        user_id="u_demo",
+                        title=title,
+                        status=status,
+                        paid_amount=paid,
+                        goods_paid=goods,
+                        shipping_fee=shipping,
+                        points_used=0,
+                        refunded_amount=paid if status == "refunded" else 0.0,
+                        region=region,
+                        delivered_at=delivered_at,
+                        created_at=utcnow() - timedelta(days=(delivered_days or 0) + 2),
+                        items=[
+                            OrderItem(
+                                product_id=f"p_{oid}",
+                                title=title,
+                                qty=1,
+                                unit_price=goods,
+                                category=category,
+                                returnable=returnable,
+                            )
+                        ],
+                    )
                 )
-            )
-        if db.get(Order, "1002") is None:
-            db.add(
-                Order(
-                    id="1002",
-                    order_no="1002",
-                    user_id="u_demo",
-                    title="保温杯",
-                    status="paid",
-                    paid_amount=89.0,
-                    goods_paid=83.0,
-                    shipping_fee=6.0,
-                    points_used=0,
-                    region="上海",
-                    items=[OrderItem(product_id="p_cup", title="保温杯", qty=1, unit_price=83.0, category="home", returnable=True)],
-                )
-            )
-        if db.get(Order, "1003") is None:
-            db.add(
-                Order(
-                    id="1003",
-                    order_no="1003",
-                    user_id="u_demo",
-                    title="机械键盘",
-                    status="shipped",
-                    paid_amount=159.0,
-                    goods_paid=153.0,
-                    shipping_fee=6.0,
-                    points_used=0,
-                    region="新疆",
-                    items=[OrderItem(product_id="p_keyboard", title="机械键盘", qty=1, unit_price=153.0, category="digital", returnable=True)],
-                )
-            )
-        if db.get(Order, "1004") is None:
-            db.add(
-                Order(
-                    id="1004",
-                    order_no="1004",
-                    user_id="u_demo",
-                    title="高端显示器",
-                    status="delivered",
-                    paid_amount=699.0,
-                    goods_paid=699.0,
-                    shipping_fee=0.0,
-                    points_used=0,
-                    region="上海",
-                    delivered_at=utcnow() - timedelta(days=2),
-                    items=[OrderItem(product_id="p_monitor", title="高端显示器", qty=1, unit_price=699.0, category="digital", returnable=True)],
-                )
-            )
         db.commit()
 
-        if db.get(Shipment, 1) is None:
-            db.add(
-                Shipment(
-                    order_id="1003",
-                    carrier="顺丰",
-                    tracking_no="SF1234567890",
-                    status="运输中",
-                    events_json='[{"time":"2026-10-28 09:00","text":"已揽收"},{"time":"2026-10-28 18:00","text":"到达上海转运中心"},{"time":"2026-10-29 08:00","text":"派送中"}]',
-                )
-            )
-            db.commit()
+        shipment_seed = {
+            "1003": ("顺丰", "SF1234567890", "运输中", '[{"time":"2026-10-28 09:00","text":"已揽收"},{"time":"2026-10-28 18:00","text":"到达上海转运中心"},{"time":"2026-10-29 08:00","text":"派送中"}]'),
+            "1011": ("京东物流", "JD9876543210", "已发货", '[{"time":"2026-10-29 10:00","text":"已出库"},{"time":"2026-10-29 20:00","text":"发往哈尔滨"}]'),
+        }
+        for oid, (carrier, tracking, status, events) in shipment_seed.items():
+            exists = db.scalar(select(Shipment).where(Shipment.order_id == oid))
+            if exists is None:
+                db.add(Shipment(order_id=oid, carrier=carrier, tracking_no=tracking, status=status, events_json=events))
+        db.commit()
     finally:
         db.close()
 

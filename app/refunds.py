@@ -72,7 +72,7 @@ def evaluate_refund(order: Order, reason_code: str) -> RefundDecision:
         return RefundDecision(
             True, reason_code, ["质量问题/错发/破损，平台承担运费"], round(amount, 2),
             {"goods": round(goods_paid, 2), "shipping": round(shipping_fee, 2), "points_refund": order.points_used or 0},
-            "platform", amount > HUMAN_REVIEW_LIMIT, snapshot,
+            "platform", amount > HUMAN_REVIEW_LIMIT or any(not item.returnable for item in order.items), snapshot,
         )
 
     if reason_code != "no_reason":

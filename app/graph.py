@@ -95,7 +95,7 @@ def resolve_order(state: State) -> dict:
         return {}
     with SessionLocal() as db:
         rows = recent_orders(db, state["user_id"], limit=8)
-        options = [order_summary(o) for o in rows if o.status not in {"cancelled", "refunded", "refunding"}]
+        options = [order_summary(o) for o in rows if o.status not in {"cancelled", "refunded", "refunding", "pending_payment"}]
     if not options:
         return {"no_order": True}
     value = interrupt(
