@@ -1,9 +1,9 @@
 # CONTEXT · 电商 AI 智能客服 Agent
 
-> 版本：v1.3  
-> 日期：2026-10-30  
-> 状态：P0-Lite 基础版已实现；v0.5 对话卡片/排版修订待实施  
-> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md)、[02-方案设计.md](./docs/02-方案设计.md) v0.5  
+> 版本：v1.4<br>
+> 日期：2026-10-30<br>
+> 状态：P0-Lite 基础版 + v0.5 对话卡片/排版已完成<br>
+> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md)、[02-方案设计.md](./docs/02-方案设计.md) v0.5<br>
 > 实现入口：[README.md](./README.md)；本地地址：<http://127.0.0.1:8000>
 
 ---
@@ -110,7 +110,7 @@
 
 > D1–D7 必须在**同一套可启动环境**里连续演示通过；不能用 mock 替换关键链路（LLM/检索/DB 可用测试替身，但 Demo 必须真实跑）。
 >
-> **v0.5 状态说明**：D4 的“卡片嵌入气泡”和 D5 的“物流逐行”是本次新目标；当前基础版可用但尚未满足，按第 8 节实施后再验收。
+> **v0.5 状态说明**：D4 的“卡片嵌入气泡”和 D5 的“物流逐行”已实现并通过 Playwright/接口自测；截图见 [README](README.md)。
 
 ### 3.2 P0-Lite 工程验收
 
@@ -236,28 +236,28 @@
 
 | 项 | 状态 |
 | --- | --- |
-| P0-Lite 基础链路（SSE/RAG/订单/退款/引用/气泡/12 笔数据） | ✅ 已实现，12 个 pytest 通过 |
+| P0-Lite 基础链路（SSE/RAG/订单/退款/引用/气泡/12 笔数据） | ✅ 已实现，13 个 pytest 通过 |
 | 气泡消息 + 圆形反馈按钮 | ✅ 已实现 |
-| 订单/退款卡嵌套在气泡内 | ❌ 待实施（A15） |
-| 卡片 footer 内边距 + 订单两行布局 | ❌ 待实施（A16） |
-| 物流状态/轨迹逐行 | ❌ 待实施（A17） |
-| 桌面 1280 + 移动 342 截图 + Playwright 新断言 | ❌ 待实施 |
+| 订单/退款卡嵌套在气泡内 | ✅ 已实现（A15） |
+| 卡片 footer 内边距 + 订单两行布局 | ✅ 已实现（A16） |
+| 物流状态/轨迹逐行 | ✅ 已实现（A17） |
+| 桌面 1280 + 移动 342 截图 + Playwright 断言 | ✅ 已验证（截图见 README） |
 
-### 8.2 实施清单（按顺序）
+### 8.2 实施记录（已完成）
 
-1. 后端 `tool_execute` 物流输出改为“状态段 + 每轨迹一行”，补单测。
-2. 前端 `renderContent` 保留空行/列表；`renderInterruptIntoBubble()` 复用当前 assistant 气泡，不追加新消息；中断时隐藏 `.msg-footer`。
-3. CSS `.has-interrupt`、`.interrupt-footer`、`.order-main/.order-sub`；342px 下 footer 换行不溢出。
-4. `GET /sessions/{id}/interrupt` 刷新恢复复用同一气泡。
-5. Playwright 断言 A15–A17 + 原 12 个 pytest 全量回归；补桌面/移动截图。
+1. ✅ 后端 `tool_execute` 物流输出改为“状态段 + 每轨迹一行”，补单测。
+2. ✅ 前端 `renderContent` 保留空行/列表；`renderInterruptIntoBubble()` 复用当前 assistant 气泡，不追加新消息；中断时隐藏 `.msg-footer`。
+3. ✅ CSS `.has-interrupt`、`.interrupt-footer`、订单两行布局；342px 下 footer 换行不溢出。
+4. ✅ `GET /sessions/{id}/interrupt` 刷新恢复复用同一气泡。
+5. ✅ Playwright 断言 A15–A17 + 原 13 个 pytest 全量回归；桌面/移动截图。
 
-### 8.3 实施后门禁
+### 8.3 实施后门禁（已验证）
 
-- 订单选择时 `.message.message-assistant` 恰好 1 个，`.bubble .interrupt-card` 恰好 1 个。
-- `.interrupt-footer` padding ≥14px，按钮底边距气泡底边 ≥14px；342px 不溢出。
-- 物流回复 1 行状态 + N 行轨迹；无 `；` 拼接。
-- 普通 RAG、引用、退款确认、反馈、SSE 终止态不回归。
-- 未通过 A15–A17 前，不得把 v0.5 UI 标为“已完成”。
+- ✅ 订单选择时 `.message.message-assistant` 恰好 1 个，`.bubble .interrupt-card` 恰好 1 个。
+- ✅ `.interrupt-footer` padding ≥14px，按钮底边距气泡底边 ≥14px；342px 不溢出。
+- ✅ 物流回复 1 行状态 + N 行轨迹；无 `；` 拼接。
+- ✅ 普通 RAG、引用、退款确认、反馈、SSE 终止态不回归。
+- ✅ 未通过 A15–A17 前，不得把 v0.5 UI 标为“已完成”。
 
 ---
 

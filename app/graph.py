@@ -142,8 +142,14 @@ def tool_execute(state: State) -> dict:
             return {"no_order": True}
         if state.get("intent") == "logistics_query":
             info = logistics_summary(order)
-            events = "；".join(f"{e.get('time','')} {e.get('text','')}" for e in info.get("events", []))
-            answer = f"订单 {order.id} 当前物流状态：{info.get('status')}。{events}".strip()
+            lines = [f"订单 {order.id} 当前物流状态：{info.get('status')}", ""]
+            events = info.get("events", [])
+            if events:
+                for event in events:
+                    lines.append(f"- {event.get('time', '')} {event.get('text', '')}".strip())
+            else:
+                lines.append("- 暂无物流轨迹")
+            answer = "\n".join(lines).strip()
         else:
             answer = f"订单 {order.id} 当前状态：{order.status}，商品：{order.title}，实付 {order.paid_amount:.2f} 元。"
         return {"answer": answer, "status": "ok"}

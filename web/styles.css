@@ -2517,12 +2517,70 @@ svg {
   }
 }
 
-.interrupt-card-wrap .message-main {
-  max-width: min(86%, 680px);
+.msg-gap {
+  height: 8px;
 }
 
-.interrupt-card-wrap .interrupt-card {
+/* v0.5: interrupt card lives inside the current assistant bubble */
+.message-assistant .message-main {
+  flex: 1 1 auto;
+}
+
+.bubble.has-interrupt {
   width: 100%;
-  margin-left: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.bubble.has-interrupt .interrupt-card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 18px 18px 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.bubble.has-interrupt .interrupt-card h3 {
+  margin: 0 0 14px;
+  color: var(--ink-strong);
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.interrupt-footer {
+  display: flex;
+  gap: 10px;
+  margin: 16px -18px 0;
+  padding: 14px 18px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.interrupt-footer .btn {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+}
+
+.bubble.has-interrupt .order-options {
+  margin-bottom: 2px;
+}
+
+@media (max-width: 380px) {
+  .bubble.has-interrupt .interrupt-card {
+    padding: 14px 14px 0;
+  }
+  .interrupt-footer {
+    flex-wrap: wrap;
+    margin: 14px -14px 0;
+    padding: 12px 14px 14px;
+  }
+  .interrupt-footer .btn {
+    flex: 1 1 auto;
+  }
 }
 

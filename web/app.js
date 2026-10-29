@@ -38,6 +38,10 @@
   };
 
   const headers = () => ({ "Content-Type": "application/json", "X-User-Id": state.userId });
+  const REASON_LABELS = { quality: "质量问题", no_reason: "无理由", wrong_item: "错发", damaged: "破损", missing: "漏发", other: "其他" };
+  const SHIPPING_LABELS = { platform: "平台承担", user: "用户承担" };
+  const STATUS_LABELS = { pending_payment: "待支付", paid: "已支付", shipped: "已发货", delivered: "已签收", refunding: "退款中", refunded: "已退款", cancelled: "已取消" };
+  const label = (map, value) => map[value] || value || "";
 
   function escapeHtml(value) {
     return String(value || "")
@@ -57,7 +61,7 @@
     const lines = String(text || "").split("\n");
     return lines
       .map((line) => {
-        if (!line.trim()) return "";
+        if (!line.trim()) return '<div class="msg-gap" aria-hidden="true"></div>';
         let html = renderInline(line);
         html = html.replace(/\[(\d+)\]/g, (m, n) => {
           const idx = Number(n);
@@ -105,7 +109,10 @@
   function messageElement(role, content, citations, id, status) {
     const wrap = document.createElement("article");
     wrap.className = `message message-${role}`;
-    if (id) wrap.dataset.id = id;
+    if (id) {
+      wrap.dataset.id = id;
+      wrap.id = `msg-${id}`;
+    }
 
     const avatar = document.createElement("div");
     avatar.className = "message-avatar";
@@ -139,6 +146,7 @@
         </button>`;
       footer.appendChild(state);
       footer.appendChild(actions);
+      footer.hidden = status === "waiting_user" || status === "streaming";
       main.appendChild(footer);
       wrap.appendChild(avatar);
       wrap.appendChild(main);
@@ -215,52 +223,95 @@
     els.citationOverlay.hidden = true;
   }
 
-  function renderInterrupt(payload) {
-    state.pendingInterrupt = payload;
-    const wrap = document.createElement("article");
-    wrap.className = "message message-assistant interrupt-card-wrap";
-    const body = document.createElement("div");
-    body.className = "message-main";
-    const card = document.createElement("div");
-    card.className = "interrupt-card";
-    if (payload.type === "order_select") {
-      card.innerHTML = `<h3>${escapeHtml(payload.question || "请选择订单")}</h3>
-        <div class="order-options">${(payload.options || []).map((o, i) => `
-          <label class="order-option"><input type="radio" name="orderChoice" value="${escapeHtml(o.order_id)}" ${i === 0 ? "checked" : ""}>
-          <span><strong>订单 ${escapeHtml(o.order_id)}</strong><small>${escapeHtml(o.title || "")} · ¥${Number(o.paid_amount || 0).toFixed(2)} · ${escapeHtml(o.status || "")}</small></span></label>`).join("")}</div>
-        <div class="interrupt-actions"><button type="button" class="btn btn-primary" data-confirm-order>确认</button><button type="button" class="btn btn-ghost" data-cancel>取消</button></div>`;
-    } else if (payload.type === "confirm_refund") {
-      card.innerHTML = `<h3>确认提交退款申请？</h3>
-        <div class="receipt-lines"><div><span>订单</span><strong>${escapeHtml(payload.order_id)}</strong></div>
-        <div><span>退款金额</span><strong>¥${Number(payload.amount || 0).toFixed(2)}</strong></div>
-        <div><span>原因</span><strong>${escapeHtml(payload.reason || "")}</strong></div>
-        <div><span>运费承担</span><strong>${escapeHtml(payload.shipping_payer || "")}</strong></div></div>
-        <div class="interrupt-actions"><button type="button" class="btn btn-primary" data-confirm-refund>确认退款</button><button type="button" class="btn btn-ghost" data-cancel>取消</button></div>`;
-    } else {
-      card.innerHTML = `<p>${escapeHtml(payload.question || "需要你补充信息")}</p><button class="btn btn-ghost" data-cancel>取消</button>`;
+  function ensureAssistantMessage() {
+    let msg = state.assistantId ? document.getElementById(`msg-${state.assistantId}`) : null;
+    if (!msg) msg = [...document.querySelectorAll(".message-assistant")].pop();
+    if (!msg) {
+      const id = `m_local_${Date.now()}`;
+      state.assistantId = id;
+      msg = messageElement("assistant", "", [], id, "waiting_user");
+      els.messageList.appendChild(msg);
     }
-    body.appendChild(card);
-    wrap.appendChild(body);
-    els.messageList.appendChild(wrap);
+    if (msg.dataset.id) state.assistantId = msg.dataset.id;
+    return msg;
+  }
+
+  function renderInterruptIntoBubble(payload) {
+    state.pendingInterrupt = payload;
+    const msg = ensureAssistantMessage();
+    const bubble = msg.querySelector(".bubble");
+    if (!bubble) return;
+    bubble.classList.add("has-interrupt");
+    const footer = msg.querySelector(".msg-footer");
+    if (footer) footer.hidden = true;
+
+    let inner = "";
+    if (payload.type === "order_select") {
+      const options = (payload.options || []).map((o, i) => `
+        <label class="order-option ${i === 0 ? "is-selected" : ""}">
+          <input type="radio" name="orderChoice" value="${escapeHtml(o.order_id)}" ${i === 0 ? "checked" : ""}>
+          <span class="order-radio"></span>
+          <span class="order-main">
+            <span class="order-title">订单 ${escapeHtml(o.order_id)} · ${escapeHtml(o.title || "")}</span>
+            <span class="order-meta"><span class="order-amount">¥${Number(o.paid_amount || 0).toFixed(2)}</span> · ${escapeHtml(label(STATUS_LABELS, o.status))}</span>
+          </span>
+        </label>`).join("");
+      inner = `<div class="interrupt-card">
+        <h3>${escapeHtml(payload.question || "请选择要处理的订单")}</h3>
+        <div class="order-options">${options}</div>
+        <div class="interrupt-footer">
+          <button type="button" class="btn btn-primary" data-confirm-order>确认</button>
+          <button type="button" class="btn btn-ghost" data-cancel>取消</button>
+        </div>
+      </div>`;
+    } else if (payload.type === "confirm_refund") {
+      inner = `<div class="interrupt-card">
+        <h3>确认提交退款申请？</h3>
+        <div class="refund-summary">
+          <div class="refund-item"><small>订单</small><strong>${escapeHtml(payload.order_id)}</strong></div>
+          <div class="refund-item"><small>退款金额</small><strong>¥${Number(payload.amount || 0).toFixed(2)}</strong></div>
+          <div class="refund-item"><small>原因</small><strong>${escapeHtml(label(REASON_LABELS, payload.reason))}</strong></div>
+          <div class="refund-item"><small>运费承担</small><strong>${escapeHtml(label(SHIPPING_LABELS, payload.shipping_payer))}</strong></div>
+        </div>
+        <div class="interrupt-footer">
+          <button type="button" class="btn btn-primary" data-confirm-refund>确认退款</button>
+          <button type="button" class="btn btn-ghost" data-cancel>取消</button>
+        </div>
+      </div>`;
+    } else {
+      inner = `<div class="interrupt-card"><h3>${escapeHtml(payload.question || "需要你补充信息")}</h3><div class="interrupt-footer"><button class="btn btn-ghost" data-cancel>取消</button></div></div>`;
+    }
+    bubble.innerHTML = inner;
+    showWelcome(false);
     scrollBottom();
+
+    const card = bubble.querySelector(".interrupt-card");
+    card.querySelectorAll(".order-option").forEach((option) => {
+      option.addEventListener("change", () => {
+        card.querySelectorAll(".order-option").forEach((o) => o.classList.remove("is-selected"));
+        option.classList.add("is-selected");
+      });
+    });
     card.querySelector("[data-confirm-order]")?.addEventListener("click", () => {
       const selected = card.querySelector('input[name="orderChoice"]:checked');
       if (!selected) return toast("请选择订单");
-      submitResume({ order_id: selected.value }, null, wrap);
+      submitResume({ order_id: selected.value }, null, msg);
     });
     card.querySelector("[data-confirm-refund]")?.addEventListener("click", () => {
-      submitResume({ confirmed: true }, payload.confirm_token || null, wrap);
+      submitResume({ confirmed: true }, payload.confirm_token || null, msg);
     });
     card.querySelector("[data-cancel]")?.addEventListener("click", () => {
-      submitResume({ confirmed: false, order_id: null }, null, wrap);
+      submitResume({ confirmed: false, order_id: null }, null, msg);
     });
   }
 
-  async function submitResume(response, token, card) {
+  async function submitResume(response, token, msg) {
     if (!state.pendingInterrupt || !state.sessionId) return;
     const interrupt = state.pendingInterrupt;
     state.pendingInterrupt = null;
-    if (card) card.remove();
+    if (msg) {
+      msg.querySelectorAll(".interrupt-footer .btn").forEach((btn) => (btn.disabled = true));
+    }
     setStatus("正在处理…", true);
     try {
       await streamRequest("/api/v1/chat/resume", {
@@ -271,6 +322,9 @@
       });
     } catch (err) {
       showError(err.message || "恢复失败");
+      if (msg) {
+        msg.querySelectorAll(".interrupt-footer .btn").forEach((btn) => (btn.disabled = false));
+      }
     } finally {
       setStatus("", false);
     }
@@ -343,7 +397,13 @@
       } else {
         msg._content = "";
         msg._citations = [];
-        msg.querySelector(".bubble").innerHTML = "";
+        const bubble = msg.querySelector(".bubble");
+        if (bubble) {
+          bubble.classList.remove("has-interrupt");
+          bubble.innerHTML = "";
+        }
+        const footer = msg.querySelector(".msg-footer");
+        if (footer) footer.hidden = true;
       }
       scrollBottom();
     } else if (event === "citation") {
@@ -367,7 +427,7 @@
       if (data.phase === "write") setStatus("正在提交退款，请稍候…", true);
     } else if (event === "interrupt") {
       setStatus("", false);
-      renderInterrupt(data);
+      renderInterruptIntoBubble(data);
     } else if (event === "done") {
       setStatus("", false);
       const msg = document.getElementById(`msg-${state.assistantId}`);
@@ -375,6 +435,10 @@
         msg._content = state.currentText;
         const status = msg.querySelector(".msg-status");
         if (status) status.textContent = data.receipt ? "已提交" : "";
+        const bubble = msg.querySelector(".bubble");
+        if (bubble) bubble.classList.remove("has-interrupt");
+        const footer = msg.querySelector(".msg-footer");
+        if (footer) footer.hidden = false;
         setBubbleContent(msg, state.currentText, [...state.citations.values()]);
         bindMessageActions(msg);
       }
@@ -440,9 +504,11 @@
     const data = await res.json();
     els.messageList.innerHTML = "";
     showWelcome(!(data.items || []).length);
+    state.assistantId = null;
     for (const m of data.items || []) {
       const el = messageElement(m.role, m.content || "", m.citations || [], m.id, m.status);
       els.messageList.appendChild(el);
+      if (m.role === "assistant") state.assistantId = m.id;
     }
     els.headerSession.textContent = `会话 ${id.slice(-6)}`;
     scrollBottom();
@@ -450,13 +516,14 @@
     try {
       const pending = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}/interrupt`, { headers: headers() });
       const payload = await pending.json();
-      if (payload.interrupt) renderInterrupt(payload.interrupt);
+      if (payload.interrupt) renderInterruptIntoBubble(payload.interrupt);
     } catch {}
   }
 
   function newChat() {
     if (state.streaming) return;
     state.sessionId = null;
+    state.assistantId = null;
     state.pendingInterrupt = null;
     localStorage.removeItem("dsh_session_id");
     els.messageList.innerHTML = "";

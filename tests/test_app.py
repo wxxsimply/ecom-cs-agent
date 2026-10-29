@@ -59,6 +59,16 @@ def test_shipping_answer_has_citations():
         assert done["citations_used"]
 
 
+def test_logistics_answer_is_multiline():
+    with TestClient(app) as client:
+        events = chat(client, "订单 1003 到哪了", "t-logistics-1")
+        answer = "".join(e["data"].get("delta", "") for e in events if e["event"] == "token")
+        assert "运输中" in answer
+        assert "\n" in answer
+        assert "- 2026-10-28 09:00 已揽收" in answer
+        assert "；" not in answer
+
+
 def test_order_query_is_scoped_to_user():
     with TestClient(app) as client:
         response = client.get("/api/v1/orders/1001", headers={"X-User-Id": "other"})
