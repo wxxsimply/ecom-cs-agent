@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="小猫 · 智能客服：售前咨询、订单物流与售后处理的演示对话页">
+  <meta name="theme-color" content="#f7f4ef">
+  <title>小猫 · 智能客服</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Inline icon sprite: no external assets, works fully offline. -->
+  <svg class="svg-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-cat" viewBox="0 0 32 32">
+      <path d="M8.1 12.7 6.8 5.5l6.1 3.3a11.4 11.4 0 0 1 6.2 0l6.1-3.3-1.3 7.2a9.2 9.2 0 1 1-15.8 0Z" fill="currentColor" opacity=".13"/>
+      <path d="M8.1 12.7 6.8 5.5l6.1 3.3a11.4 11.4 0 0 1 6.2 0l6.1-3.3-1.3 7.2a9.2 9.2 0 1 1-15.8 0Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <circle cx="12.2" cy="17" r="1.35" fill="currentColor"/>
+      <circle cx="19.8" cy="17" r="1.35" fill="currentColor"/>
+      <path d="M14.3 20.7c1 .8 2.4.8 3.4 0M6.2 18.2l-3.1-.5M6.1 20.4l-2.9 1.1M25.8 18.2l3.1-.5M25.9 20.4l2.9 1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.1M20 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m5 12 14-7-4.2 14L11 13l-6-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m11 13 8-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></symbol>
+    <symbol id="i-thumb-up" viewBox="0 0 24 24"><path d="M7 10v10H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h3Zm0 10h9.2a2.5 2.5 0 0 0 2.4-1.8l1.5-5A2.5 2.5 0 0 0 17.7 10H14l.6-3.3A2.1 2.1 0 0 0 12.5 4a1 1 0 0 0-.9.6L7 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-thumb-down" viewBox="0 0 24 24"><path d="M7 14V4H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3Zm0-10h9.2a2.5 2.5 0 0 1 2.4 1.8l1.5 5a2.5 2.5 0 0 1-2.4 3.2H14l.6 3.3a2.1 2.1 0 0 1-2.1 2.7 1 1 0 0 1-.9-.6L7 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.1M20 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5M12 8h.01" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.7 2.8 20a1 1 0 0 0 .9 1.5h16.6a1 1 0 0 0 .9-1.5L12 3.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v5M12 17.4h.01" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.4 4.4L19 7.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-order" viewBox="0 0 24 24"><path d="M5 8.5 12 5l7 3.5v7L12 19l-7-3.5v-7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m5 8.5 7 3.4 7-3.4M12 12v7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="i-refund" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 9.5v.01M17.5 14.5v.01" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.2c.6 4.3 2.5 6.2 6.8 6.8-4.3.6-6.2 2.5-6.8 6.8-.6-4.3-2.5-6.2-6.8-6.8 4.3-.6 6.2-2.5 6.8-6.8Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M18.4 15.4c.3 1.9 1.1 2.7 3 3-1.9.3-2.7 1.1-3 3-.3-1.9-1.1-2.7-3-3 1.9-.3 2.7-1.1 3-3Z" fill="currentColor"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-3-1.8-3 1.8-3-1.8-3 1.8v-17Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 8h6M9 11.5h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar" aria-label="会话侧边栏">
+      <div class="sidebar-top">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#i-cat"/></svg></span>
+          <span class="brand-text"><strong>小猫</strong><small>智能客服</small></span>
+        </div>
+        <button type="button" class="icon-btn sidebar-close" id="closeSidebarBtn" aria-label="关闭会话列表">
+          <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-block new-chat" id="newChatBtn">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
+        <span>新对话</span>
+      </button>
+
+      <div class="session-section">
+        <div class="section-head">
+          <span class="section-label">最近会话</span>
+          <button type="button" class="icon-btn icon-btn-sm" id="refreshSessionsBtn" aria-label="刷新会话列表" title="刷新会话列表">
+            <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+          </button>
+        </div>
+        <div class="session-list" id="sessionList" role="list" aria-label="会话列表"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="user-chip" title="当前演示账号">
+          <span class="user-avatar" aria-hidden="true">我</span>
+          <span class="user-copy">
+            <small>演示账号</small>
+            <strong id="userIdLabel">u_demo</strong>
+          </span>
+          <button type="button" class="link-btn" id="switchUserBtn">切换</button>
+        </div>
+        <p class="foot-note">本地演示环境 · 请勿输入真实敏感信息</p>
+      </div>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+
+    <main class="chat" id="chat">
+      <header class="chat-header">
+        <button type="button" class="icon-btn mobile-only" id="menuBtn" aria-label="打开会话列表" aria-controls="sidebar" aria-expanded="false">
+          <svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <div class="agent">
+          <span class="agent-avatar" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#i-cat"/></svg></span>
+          <div class="agent-copy">
+            <h1>小猫 · 智能客服</h1>
+            <p class="agent-status"><span class="status-dot" aria-hidden="true"></span><span>在线 · 通常立即回复</span></p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span class="session-pill" id="headerSession" title="当前会话">新对话</span>
+        </div>
+      </header>
+
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions text" aria-label="聊天消息">
+        <section class="welcome" id="welcome" aria-labelledby="welcomeTitle">
+          <span class="welcome-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#i-cat"/></svg></span>
+          <h2 id="welcomeTitle">你好，我是小猫</h2>
+          <p>我可以帮你查订单、看物流，或处理退款等售后问题。<br>需要引用依据时，答案里的 <span class="welcome-cite">[n]</span> 可以点开查看。</p>
+          <div class="suggestions" aria-label="试试这样问">
+            <button type="button" class="suggestion" data-suggestion="邮费是多少？">
+              <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+              <span>邮费是多少？</span>
+            </button>
+            <button type="button" class="suggestion" data-suggestion="我的快递到哪了？">
+              <svg class="icon" aria-hidden="true"><use href="#i-order"/></svg>
+              <span>我的快递到哪了？</span>
+            </button>
+            <button type="button" class="suggestion" data-suggestion="我要退款">
+              <svg class="icon" aria-hidden="true"><use href="#i-refund"/></svg>
+              <span>我要退款</span>
+            </button>
+          </div>
+          <p class="welcome-note">演示环境，回答由 AI 生成，重要信息请以订单与政策页面为准。</p>
+        </section>
+
+        <div class="message-list" id="messageList"></div>
+      </div>
+
+      <div class="composer-wrap" id="composerWrap">
+        <div class="composer-status" id="composerStatus" hidden>
+          <span class="status-spinner" aria-hidden="true"></span>
+          <span id="composerStatusText">小猫正在输入…</span>
+          <button type="button" class="link-btn stop-inline" id="stopInlineBtn" hidden>停止生成</button>
+        </div>
+
+        <form class="composer" id="composerForm" novalidate>
+          <label class="sr-only" for="messageInput">输入你的问题</label>
+          <textarea
+            id="messageInput"
+            class="composer-input"
+            name="message"
+            rows="1"
+            maxlength="2000"
+            autocomplete="off"
+            placeholder="输入问题，Enter 发送，Shift + Enter 换行"
+          ></textarea>
+          <button type="submit" class="send-btn" id="sendBtn" aria-label="发送消息" title="发送消息">
+            <svg class="icon icon-send" aria-hidden="true"><use href="#i-send"/></svg>
+            <svg class="icon icon-stop" aria-hidden="true"><use href="#i-stop"/></svg>
+          </button>
+        </form>
+        <p class="composer-note">AI 生成内容仅供参考 · 订单与退款以服务端记录为准</p>
+      </div>
+    </main>
+  </div>
+
+  <div class="drawer-overlay" id="citationOverlay" hidden></div>
+  <aside class="drawer" id="citationDrawer" role="dialog" aria-modal="true" aria-labelledby="citationDrawerTitle" hidden>
+    <header class="drawer-head">
+      <div>
+        <p class="drawer-eyebrow">引用依据</p>
+        <h2 id="citationDrawerTitle">知识库来源</h2>
+      </div>
+      <button type="button" class="icon-btn" id="citationCloseBtn" aria-label="关闭引用抽屉">
+        <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </header>
+    <div class="drawer-body" id="citationList"></div>
+    <footer class="drawer-foot">
+      <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+      <p>内容由知识库提供，具体以页面公示为准。引用仅展示回答实际使用的证据。</p>
+    </footer>
+  </aside>
+
+  <dialog class="dialog" id="feedbackDialog" aria-labelledby="feedbackTitle">
+    <form class="dialog-form" id="feedbackForm" novalidate>
+      <header class="dialog-head">
+        <div>
+          <p class="drawer-eyebrow">回答反馈</p>
+          <h2 id="feedbackTitle">告诉我们哪里不满意</h2>
+          <p class="dialog-sub">反馈会进入问题池，帮助我们把回答做得更准确。</p>
+        </div>
+        <button type="button" class="icon-btn" id="feedbackCloseBtn" aria-label="关闭反馈弹窗">
+          <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </header>
+
+      <div class="reason-grid" id="reasonGrid" role="group" aria-label="反馈原因（选填）">
+        <button type="button" class="reason-chip" data-reason="irrelevant" aria-pressed="false">答非所问</button>
+        <button type="button" class="reason-chip" data-reason="inaccurate" aria-pressed="false">信息不准确</button>
+        <button type="button" class="reason-chip" data-reason="incomplete" aria-pressed="false">内容不完整</button>
+        <button type="button" class="reason-chip" data-reason="unclear" aria-pressed="false">表达不清楚</button>
+        <button type="button" class="reason-chip" data-reason="other" aria-pressed="false">其他</button>
+      </div>
+
+      <label class="field-label" for="feedbackComment">补充说明（选填）</label>
+      <textarea class="dialog-textarea" id="feedbackComment" rows="3" maxlength="500" placeholder="可以补充期望的答案或具体问题…"></textarea>
+      <div class="dialog-error" id="feedbackError" role="alert" hidden></div>
+
+      <footer class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="feedbackCancelBtn">取消</button>
+        <button type="submit" class="btn btn-primary" id="feedbackSubmitBtn">提交反馈</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <p class="sr-only" id="liveRegion" role="status" aria-live="polite"></p>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

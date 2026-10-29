@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8000"
+    environment:
+      APP_DB_PATH: /app/data/app.db
+      CHECKPOINT_DB: /app/data/checkpoints.db
+      KNOWLEDGE_DIR: /app/data/knowledge
+      DEMO_USER_ID: u_demo
+      LLM_MODE: mock
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
