@@ -27,7 +27,7 @@ docker compose up --build
 - 订单/物流查询；退款资格、金额、确认令牌、退款申请；取消/未支付/转人工出口。
 - SQLite 会话/消息/订单/退款/工单/反馈/中断/确认令牌；LangGraph `SqliteSaver` 支持同进程/重启恢复。
 - 引用展示、点赞点踩、会话历史、订单选择卡、确认卡、只读指标 API。
-- 自测：`python -m pytest -q`（10 个测试）。
+- 自测：`python -m pytest -q`（11 个测试）。
 
 ## 当前降级/边界
 
