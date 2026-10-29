@@ -59,6 +59,10 @@ def test_refund_boundaries():
     high = make_order("delivered", paid=699, goods=699)
     assert evaluate_refund(high, "quality").requires_human is True
 
+    custom = make_order("delivered", paid=399, goods=399)
+    custom.items[0].returnable = False
+    assert evaluate_refund(custom, "quality").requires_human is True
+
     unknown = evaluate_refund(delivered, "other")
     assert unknown.requires_human is True
 
