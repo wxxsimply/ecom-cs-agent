@@ -30,6 +30,17 @@ from app.refunds import RefundDecision
 
 CONFIRM_SECRET = b"p0-lite-demo-confirm-secret-change-me"
 
+PROGRESS_STEPS = [
+    ("placed", "已下单"),
+    ("paid", "已支付"),
+    ("packed", "已出库"),
+    ("picked_up", "已揽收"),
+    ("in_transit", "运输中"),
+    ("out_for_delivery", "派送中"),
+    ("delivered", "已签收"),
+]
+PROGRESS_HINT = "以下为预计流程，实际以承运商轨迹为准"
+
 
 def pii_scrub(text: str) -> str:
     text = re.sub(r"(?<!\d)1[3-9]\d{9}(?!\d)", "138****0000", text or "")
@@ -90,20 +101,120 @@ def order_summary(order: Order) -> dict:
     }
 
 
+def _shipment_events(shipment) -> list[dict]:
+    if shipment is None:
+        return []
+    try:
+        raw = json.loads(shipment.events_json or "[]")
+    except Exception:
+        return []
+    seen = set()
+    events = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        event = {"time": str(item.get("time", "")), "text": str(item.get("text", ""))}
+        key = (event["time"], event["text"])
+        if key in seen:
+            continue
+        seen.add(key)
+        events.append(event)
+    events.sort(key=lambda e: (e["time"], e["text"]))
+    return events
+
+
+def _event_time(events: list[dict], *keywords: str) -> str | None:
+    for event in events:
+        if any(keyword in event["text"] for keyword in keywords):
+            return event["time"] or None
+    return None
+
+
+def _build_progress(order: Order, shipment, events: list[dict]) -> dict:
+    texts = [event["text"] for event in events]
+
+    def has(*keywords: str) -> bool:
+        return any(any(keyword in text for keyword in keywords) for text in texts)
+
+    paid = order.status != "pending_payment" and float(order.paid_amount or 0) > 0
+    packed = order.status in {"shipped", "delivered", "refunded"} or has("发货", "出库")
+    picked_up = has("揽收")
+    in_transit = has("运输", "转运", "到达") or (shipment is not None and shipment.status == "运输中")
+    out_for_delivery = has("派送")
+    delivered = bool(order.delivered_at) or order.status in {"delivered", "refunded"} or has("签收")
+
+    flags = [True, paid, packed, picked_up, in_transit, out_for_delivery, delivered]
+    # 后续节点完成时，前序节点必然已完成（例如“已签收”意味着已揽收）。
+    for index in range(len(flags) - 1, 0, -1):
+        if flags[index]:
+            flags[index - 1] = True
+
+    times = {"placed": order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else None}
+    times["packed"] = _event_time(events, "发货", "出库")
+    times["picked_up"] = _event_time(events, "揽收")
+    times["in_transit"] = _event_time(events, "运输", "转运", "到达")
+    times["out_for_delivery"] = _event_time(events, "派送")
+    signed_time = _event_time(events, "签收") or (
+        order.delivered_at.strftime("%Y-%m-%d %H:%M") if order.delivered_at else None
+    )
+    times["delivered"] = signed_time
+
+    first_pending = next((index for index, done in enumerate(flags) if not done), None)
+    last_done = max((index for index, done in enumerate(flags) if done), default=0)
+    all_done = first_pending is None
+    steps = []
+    for index, (key, label) in enumerate(PROGRESS_STEPS):
+        if all_done:
+            state = "done"
+        elif index < last_done:
+            state = "done"
+        elif index == last_done:
+            state = "current"
+        else:
+            state = "pending"
+        step = {"key": key, "label": label, "state": state}
+        if times.get(key):
+            step["time"] = times[key]
+        steps.append(step)
+
+    hint = PROGRESS_HINT
+    if order.status == "cancelled":
+        hint = "订单已取消，以下为原预计流程，实际以订单状态为准"
+    elif order.status == "refunded":
+        hint = "订单已退款，以下为签收后的历史流程"
+    return {"steps": steps, "hint": hint, "exception": order.status if order.status in {"cancelled", "refunded"} else None}
+
+
 def logistics_summary(order: Order) -> dict:
     shipment = order.shipment
+    events = _shipment_events(shipment)
+    has_signed = any("签收" in event["text"] for event in events)
     if not shipment:
-        return {"order_id": order.id, "status": "暂无物流信息", "events": []}
-    try:
-        events = json.loads(shipment.events_json or "[]")
-    except Exception:
-        events = []
+        status = {
+            "delivered": "已签收",
+            "refunded": "已签收",
+            "paid": "待发货",
+            "pending_payment": "待支付",
+            "cancelled": "已取消",
+        }.get(order.status, "暂无物流信息")
+        return {
+            "order_id": order.id,
+            "status": status,
+            "carrier": None,
+            "tracking_no": None,
+            "events": [],
+            "history_complete": False,
+            "progress": _build_progress(order, None, []),
+        }
+    history_complete = has_signed if (order.delivered_at or order.status in {"delivered", "refunded"}) else bool(events)
     return {
         "order_id": order.id,
         "carrier": shipment.carrier,
         "tracking_no": shipment.tracking_no,
         "status": shipment.status,
-        "events": events[-3:],
+        "events": events,
+        "history_complete": history_complete,
+        "progress": _build_progress(order, shipment, events),
     }
 
 

@@ -14,6 +14,7 @@ INTENTS = (
     "complaint",
     "chitchat",
     "human_handoff",
+    "out_of_scope",
 )
 
 
@@ -48,11 +49,13 @@ def classify(text: str, history: list[dict] | None = None) -> str:
         return "product_qa"
     if any(k in q for k in ("邮费", "运费", "包邮", "发票", "会员", "积分", "退换", "政策")):
         return "policy_qa"
-    if any(k in q for k in ("你好", "您好", "谢谢", "在吗", "你是谁", "hi", "hello")):
+    if any(k in q for k in ("订单", "单号")):
+        return "order_query"
+    if any(k in q for k in ("你好", "您好", "谢谢", "在吗", "你是谁", "你能做什么", "可以做什么", "会什么", "hi", "hello")):
         return "chitchat"
     if extract_order_id(q):
         return "order_query"
-    return "chitchat"
+    return "out_of_scope"
 
 
 def extract_reason(text: str) -> str | None:

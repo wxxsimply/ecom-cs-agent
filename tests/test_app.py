@@ -69,6 +69,59 @@ def test_logistics_answer_is_multiline():
         assert "；" not in answer
 
 
+def test_delivered_history_is_complete_and_has_progress():
+    with TestClient(app) as client:
+        response = client.get("/api/v1/orders/1001/logistics", headers={"X-User-Id": "u_demo"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["history_complete"] is True
+        assert len(data["events"]) >= 5
+        assert "签收" in data["events"][-1]["text"]
+        steps = data["progress"]["steps"]
+        assert len(steps) == 7
+        assert all(step["state"] == "done" for step in steps)
+        assert data["progress"]["hint"]
+
+
+def test_logistics_progress_marks_pending_and_current():
+    with TestClient(app) as client:
+        data = client.get("/api/v1/orders/1002/logistics", headers={"X-User-Id": "u_demo"}).json()
+        states = [step["state"] for step in data["progress"]["steps"]]
+        assert states[0] == "done" and states[1] == "current"
+        assert "current" in states
+        assert states[-1] == "pending"
+        assert data["history_complete"] is False
+
+
+def test_logistics_sse_includes_progress():
+    with TestClient(app) as client:
+        events = chat(client, "订单 1001 到哪了", "t-logistics-sse-1")
+        done = next(e["data"] for e in events if e["event"] == "done")
+        assert len(done["progress"]["steps"]) == 7
+        assert all(step["state"] == "done" for step in done["progress"]["steps"])
+
+
+def test_out_of_scope_apologizes_and_lists_capabilities():
+    with TestClient(app) as client:
+        events = chat(client, "今天天气怎么样", "t-scope-1")
+        answer = "".join(e["data"].get("delta", "") for e in events if e["event"] == "token")
+        assert "抱歉" in answer
+        assert "无法处理" in answer
+        assert "查询订单状态" in answer and "退款" in answer
+        assert not any(e["event"] == "citation" for e in events)
+        done = next(e["data"] for e in events if e["event"] == "done")
+        assert done["status"] == "refused"
+        assert done["reason_code"] == "out_of_scope"
+
+
+def test_greeting_is_not_out_of_scope():
+    with TestClient(app) as client:
+        events = chat(client, "你好", "t-scope-2")
+        answer = "".join(e["data"].get("delta", "") for e in events if e["event"] == "token")
+        assert "抱歉，这个问题" not in answer
+        assert "小猫" in answer
+
+
 def test_order_query_is_scoped_to_user():
     with TestClient(app) as client:
         response = client.get("/api/v1/orders/1001", headers={"X-User-Id": "other"})

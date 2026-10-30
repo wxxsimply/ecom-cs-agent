@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 
 from sqlalchemy import select
@@ -23,6 +24,34 @@ ORDER_SEED = [
     ("1011", "冬季羽绒服", "shipped", 459.0, 453.0, 6.0, "哈尔滨", None, "clothing", True),
     ("1012", "预售款背包", "pending_payment", 159.0, 153.0, 6.0, "上海", None, "bag", True),
 ]
+
+
+DELIVERED_SHIPMENTS = {
+    "1001": ("顺丰", "SF10012026"),
+    "1004": ("京东物流", "JD10042026"),
+    "1005": ("中通", "ZT10052026"),
+    "1006": ("圆通", "YT10062026"),
+    "1007": ("顺丰", "SF10072026"),
+    "1009": ("中通", "ZT10092026"),
+}
+
+
+def _delivered_events(delivered_at) -> list[dict]:
+    """生成 5 条可追溯的签收轨迹，最后一条必须是已签收。"""
+    points = [
+        (4, "商家已发货"),
+        (3, "承运商已揽收"),
+        (2, "到达转运中心"),
+        (1, "派送中"),
+        (0, "已签收，签收人：本人"),
+    ]
+    return [
+        {
+            "time": (delivered_at - timedelta(days=offset)).strftime("%Y-%m-%d %H:%M"),
+            "text": text,
+        }
+        for offset, text in points
+    ]
 
 
 def seed() -> None:
@@ -55,7 +84,7 @@ def seed() -> None:
                         refunded_amount=paid if status == "refunded" else 0.0,
                         region=region,
                         delivered_at=delivered_at,
-                        created_at=utcnow() - timedelta(days=(delivered_days or 0) + 2),
+                        created_at=utcnow() - timedelta(days=(delivered_days + 6 if delivered_days is not None else 2)),
                         items=[
                             OrderItem(
                                 product_id=f"p_{oid}",
@@ -78,6 +107,23 @@ def seed() -> None:
             exists = db.scalar(select(Shipment).where(Shipment.order_id == oid))
             if exists is None:
                 db.add(Shipment(order_id=oid, carrier=carrier, tracking_no=tracking, status=status, events_json=events))
+
+        # 已签收订单必须有完整历史轨迹，工作过程可追溯。
+        for oid, (carrier, tracking) in DELIVERED_SHIPMENTS.items():
+            order = db.get(Order, oid)
+            if order is None or order.delivered_at is None:
+                continue
+            exists = db.scalar(select(Shipment).where(Shipment.order_id == oid))
+            if exists is None:
+                db.add(
+                    Shipment(
+                        order_id=oid,
+                        carrier=carrier,
+                        tracking_no=tracking,
+                        status="已签收",
+                        events_json=json.dumps(_delivered_events(order.delivered_at), ensure_ascii=False),
+                    )
+                )
         db.commit()
     finally:
         db.close()

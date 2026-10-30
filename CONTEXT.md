@@ -1,9 +1,9 @@
 # CONTEXT · 电商 AI 智能客服 Agent
 
-> 版本：v1.5<br>
+> 版本：v1.6<br>
 > 日期：2026-10-30<br>
-> 状态：P0-Lite v0.5 已实现；v0.6 物流留痕/进度/范围外兜底范围冻结，待实施<br>
-> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.5、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.1<br>
+> 状态：P0-Lite v0.6 物流留痕/进度/范围外兜底已实现，自测通过<br>
+> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.5、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.2<br>
 > 实现入口：[README.md](./README.md)；本地地址：<http://127.0.0.1:8000>
 
 ---
@@ -121,7 +121,7 @@
 >
 > **v0.5 状态说明**：D4 的“卡片嵌入气泡”和 D5 的“物流逐行”已实现并通过 Playwright/接口自测；截图见 [README](README.md)。
 >
-> **v0.6 状态说明**：D8/D9 是新增范围，尚未实现；按第 9 节实施后再验收。
+> **v0.6 状态说明**：D8/D9 已实现并通过 pytest/Playwright；截图见 [README](README.md)。
 
 ### 3.2 P0-Lite 工程验收
 
@@ -147,7 +147,7 @@
 | A18 | 已签收留痕 | 所有 `delivered_at` 非空/已签收订单（含已退款）有 shipment；`events` ≥5 条且最后一条“已签收”；查询返回全部事件，不出现 `[-3:]`；`history_complete=true`；缺失时标记不完整而不伪造 |
 | A19 | 预期流程 | 7 步固定顺序；state 仅 done/current/pending；pending 灰色 + “待完成”；固定 hint；无未来日期/ETA；`events` 与 `progress` 分字段 |
 | A20 | 范围外兜底 | 范围外样例：抱歉 + 无法处理 + 4 项能力；`status=refused`、`reason_code=out_of_scope`；无 citation/tool；不误伤业务问题、问候、转人工 |
-| A21 | v0.6 回归 | 原 13 个 pytest 全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 |
+| A21 | v0.6 回归 | 原 13 个 pytest + 5 个新增测试（共 18）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 |
 
 ### 3.3 P0-Lite 量化基线（记录，不设 0.95 硬门槛）
 
@@ -245,13 +245,13 @@
 
 ---
 
-## 8. 本轮增量实施项（v0.5，待实施）
+## 8. 本轮增量实施项（v0.5，已完成）
 
 ### 8.1 当前状态
 
 | 项 | 状态 |
 | --- | --- |
-| P0-Lite 基础链路（SSE/RAG/订单/退款/引用/气泡/12 笔数据） | ✅ 已实现，13 个 pytest 通过 |
+| P0-Lite 基础链路（SSE/RAG/订单/退款/引用/气泡/12 笔数据） | ✅ 已实现，18 个 pytest 通过（v0.5 时 13 个） |
 | 气泡消息 + 圆形反馈按钮 | ✅ 已实现 |
 | 订单/退款卡嵌套在气泡内 | ✅ 已实现（A15） |
 | 卡片 footer 内边距 + 订单两行布局 | ✅ 已实现（A16） |
@@ -276,7 +276,7 @@
 
 ---
 
-## 9. v0.6 增量范围与验收（范围冻结，待实施）
+## 9. v0.6 增量范围与验收（已实现，自测通过）
 
 ### 9.1 范围冻结
 
@@ -298,33 +298,32 @@
 - `shipment_events` 规范化表、物流审计后台；
 - 为缺失历史伪造节点；
 - 修改退款金额/资格规则、SSE 事件名/字段；
-- 改运营台、认证、多实例；
-- 本轮不写业务代码（只完成范围与验收基线）。
+- 改运营台、认证、多实例。
 
 ### 9.2 验收标准
 
 | ID | 通过标准 | 证据 |
 | --- | --- | --- |
 | A18 | 所有 `delivered_at` 非空/已签收订单（含已退款）有 shipment；events ≥5 条且最后一条“已签收”；返回全部事件；`history_complete=true`；缺失时 false + 工单，不伪造 | API 响应 + pytest `test_delivered_history_complete` |
-| A19 | 7 步固定顺序；state 仅 done/current/pending；pending 灰色 + “待完成”；hint 固定；无未来时间；`events/progress` 分字段 | API schema + Playwright `.timeline-pending`/`.progress-hint` |
+| A19 | 7 步固定顺序；state 仅 done/current/pending；pending 灰色 + “待完成”；hint 固定；无未来时间；`events/progress` 分字段 | API schema + Playwright `.timeline-step.pending`/`.timeline-hint` |
 | A20 | 范围外：抱歉 + 无法处理 + 4 项能力；无 citation/tool；`refused/out_of_scope`；不误伤“邮费/订单 1003/你好/转人工” | pytest 参数化 + Playwright 文本断言 |
-| A21 | 原 13 个 pytest 全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 | `python -m pytest -q` + Playwright 回归 |
+| A21 | 原 13 个 pytest + 5 个 v0.6 测试（共 18）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 | `python -m pytest -q` + Playwright 回归 |
 
-### 9.3 实施顺序
+### 9.3 实施记录（已完成）
 
-1. 数据：补 6 笔已签收 shipment/事件，更新 seed 幂等校验。
-2. 服务：全量事件、排序/去重、`history_complete`、`progress` 映射。
-3. 前端：timeline、灰色 pending、hint、历史列表、342px。
-4. 意图/回复：`out_of_scope` + 模板 + route；区分 D3。
-5. 测试/截图/文档：A18–A21 + README/01/02 回写。
+1. ✅ 数据：补 6 笔已签收 shipment/事件；每单 5 条，最后一条“已签收”。
+2. ✅ 服务：全量事件、排序/去重、`history_complete`、`progress` 映射。
+3. ✅ 前端：timeline、灰色 pending、hint、历史列表、342px。
+4. ✅ 意图/回复：`out_of_scope` + 模板 + route；区分 D3。
+5. ✅ 测试/截图/文档：A18–A21 + README/01/05 回写。
 
 ### 9.4 完成定义
 
-- A18–A21 全部通过，且有可复现命令/截图；
-- 原 13 个 pytest 全过；
-- 所有 delivered 种子订单可查完整轨迹；
-- 范围外样例不出现引用/工具调用；
-- 未通过 A18–A21 前不得称“v0.6 已完成”。
+- ✅ A18–A21 全部通过，且有可复现命令/截图；
+- ✅ 原 13 个 pytest + 5 个新增测试（共 18）全过；
+- ✅ 所有已签收种子订单可查完整轨迹；
+- ✅ 范围外样例不出现引用/工具调用；
+- ✅ 未通过 A18–A21 前不得称“v0.6 已完成”。
 
 ---
 

@@ -27,6 +27,8 @@ class TurnResult:
     citations: list[dict] | None = None
     receipt: dict | None = None
     interrupt: dict | None = None
+    progress: dict | None = None
+    refusal_code: str | None = None
     quality_flag: str = "ok"
 
 
@@ -78,6 +80,8 @@ def run_turn(session: ChatSession, user_id: str, query: str, turn_id: str) -> Tu
         answer=str(result.get("answer") or ""),
         citations=result.get("citations") or [],
         receipt=result.get("receipt"),
+        progress=result.get("progress"),
+        refusal_code=result.get("refusal_code"),
         quality_flag=str(result.get("quality_flag") or "ok"),
     )
 
@@ -130,6 +134,8 @@ def resume_turn(session: ChatSession, user_id: str, interrupt_id: str, value: di
         answer=str(result.get("answer") or ""),
         citations=result.get("citations") or [],
         receipt=result.get("receipt"),
+        progress=result.get("progress"),
+        refusal_code=result.get("refusal_code"),
         quality_flag=str(result.get("quality_flag") or "ok"),
     )
 

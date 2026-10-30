@@ -45,6 +45,7 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(24), default="done")
     citations_json: Mapped[str] = mapped_column(Text, default="[]")
+    progress_json: Mapped[str] = mapped_column(Text, default="[]")
     intent: Mapped[str | None] = mapped_column(String(32), nullable=True)
     route: Mapped[str | None] = mapped_column(String(32), nullable=True)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

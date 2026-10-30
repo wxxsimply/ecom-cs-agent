@@ -106,7 +106,28 @@
     bubble.innerHTML = `<div class="msg-text">${renderContent(content, citations)}</div>`;
   }
 
-  function messageElement(role, content, citations, id, status) {
+  function renderProgress(wrap, progress) {
+    const bubble = wrap.querySelector(".bubble");
+    if (!bubble || !progress || !Array.isArray(progress.steps) || !progress.steps.length) return;
+    bubble.querySelector(".logistics-progress")?.remove();
+    const statusLabel = { done: "已完成", current: "进行中", pending: "待完成" };
+    const box = document.createElement("div");
+    box.className = "logistics-progress";
+    box.innerHTML = `
+      <div class="timeline" role="list" aria-label="物流运输进度">
+        ${progress.steps.map((step) => `
+          <div class="timeline-step ${escapeHtml(step.state)}" role="listitem" aria-label="${escapeHtml(step.label)}：${statusLabel[step.state] || step.state}">
+            <span class="timeline-dot" aria-hidden="true"></span>
+            <span class="timeline-label">${escapeHtml(step.label)}</span>
+            <span class="timeline-state">${statusLabel[step.state] || ""}</span>
+            <span class="timeline-time">${escapeHtml(step.time || "")}</span>
+          </div>`).join("")}
+      </div>
+      <p class="timeline-hint">${escapeHtml(progress.hint || "以下为预计流程，实际以承运商轨迹为准")}</p>`;
+    bubble.appendChild(box);
+  }
+
+  function messageElement(role, content, citations, id, status, progress) {
     const wrap = document.createElement("article");
     wrap.className = `message message-${role}`;
     if (id) {
@@ -153,6 +174,7 @@
       wrap._citations = citations || [];
       wrap._content = content || "";
       setBubbleContent(wrap, content, citations || []);
+      renderProgress(wrap, progress);
       bindMessageActions(wrap);
     } else {
       wrap.appendChild(main);
@@ -440,6 +462,7 @@
         const footer = msg.querySelector(".msg-footer");
         if (footer) footer.hidden = false;
         setBubbleContent(msg, state.currentText, [...state.citations.values()]);
+        renderProgress(msg, data.progress);
         bindMessageActions(msg);
       }
       toast(data.receipt ? `退款申请 ${data.receipt.refund_id} 已提交` : "回答完成");
@@ -506,7 +529,7 @@
     showWelcome(!(data.items || []).length);
     state.assistantId = null;
     for (const m of data.items || []) {
-      const el = messageElement(m.role, m.content || "", m.citations || [], m.id, m.status);
+      const el = messageElement(m.role, m.content || "", m.citations || [], m.id, m.status, m.progress || null);
       els.messageList.appendChild(el);
       if (m.role === "assistant") state.assistantId = m.id;
     }

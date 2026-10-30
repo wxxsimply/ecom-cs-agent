@@ -22,6 +22,14 @@ from app.services import (
     sign_confirm_token,
 )
 
+CAPABILITIES = (
+    "我可以帮你：\n"
+    "- 查询订单状态和物流进度\n"
+    "- 办理退换货/退款申请\n"
+    "- 解答运费、会员、发票等平台规则\n"
+    "- 转接人工客服"
+)
+
 
 class State(TypedDict, total=False):
     session_id: str
@@ -47,6 +55,8 @@ class State(TypedDict, total=False):
     confirmation: dict
     receipt: dict
     tool_result: dict
+    progress: dict
+    refusal_code: str | None
     error: str
     quality_flag: str
 
@@ -87,6 +97,8 @@ def route(state: State) -> str:
         return "rag"
     if intent == "chitchat":
         return "generate"
+    if intent == "out_of_scope":
+        return "out_of_scope"
     return "handoff"
 
 
@@ -150,6 +162,7 @@ def tool_execute(state: State) -> dict:
             else:
                 lines.append("- 暂无物流轨迹")
             answer = "\n".join(lines).strip()
+            return {"answer": answer, "status": "ok", "progress": info.get("progress")}
         else:
             answer = f"订单 {order.id} 当前状态：{order.status}，商品：{order.title}，实付 {order.paid_amount:.2f} 元。"
         return {"answer": answer, "status": "ok"}
@@ -277,8 +290,20 @@ def generate(state: State) -> dict:
         return {"answer": "没有查到你的订单，请确认订单号，或到订单页查看。", "status": "refused"}
     intent = state.get("intent")
     if intent == "chitchat":
+        query = state.get("query", "")
+        if any(key in query for key in ("你能做什么", "可以做什么", "会什么", "能帮我做什么")):
+            return {"answer": f"我是小猫智能客服。\n\n{CAPABILITIES}", "status": "ok"}
         return {"answer": "你好，我是小猫智能客服，可以帮你查订单、物流、退换货和平台规则。", "status": "ok"}
     return {"answer": "我先帮你转人工确认一下。", "status": "handoff"}
+
+
+def out_of_scope(state: State) -> dict:
+    answer = (
+        "抱歉，这个问题我暂时无法处理，我不能直接帮你完成。\n\n"
+        f"{CAPABILITIES}\n\n"
+        "你可以直接说“查订单 1001”或“我要退款”。"
+    )
+    return {"answer": answer, "status": "refused", "refusal_code": "out_of_scope"}
 
 
 def handoff(state: State) -> dict:
@@ -316,6 +341,7 @@ def build_graph(checkpointer):
     builder.add_node("confirm_action", confirm_action)
     builder.add_node("execute_refund", execute_refund)
     builder.add_node("generate", generate)
+    builder.add_node("out_of_scope", out_of_scope)
     builder.add_node("handoff", handoff)
     builder.add_node("cancel_ack", cancel_ack)
 
@@ -323,7 +349,7 @@ def build_graph(checkpointer):
     builder.add_conditional_edges(
         "understand",
         route,
-        {"rag": "rag", "tools": "resolve_order", "product_tool": "product_tool", "after_sales": "resolve_order", "handoff": "handoff", "generate": "generate"},
+        {"rag": "rag", "tools": "resolve_order", "product_tool": "product_tool", "after_sales": "resolve_order", "handoff": "handoff", "generate": "generate", "out_of_scope": "out_of_scope"},
     )
     builder.add_edge("rag", "generate")
     builder.add_edge("product_tool", "generate")
@@ -345,6 +371,7 @@ def build_graph(checkpointer):
     )
     builder.add_edge("execute_refund", "generate")
     builder.add_edge("generate", END)
+    builder.add_edge("out_of_scope", END)
     builder.add_edge("handoff", END)
     builder.add_edge("cancel_ack", END)
     return builder.compile(checkpointer=checkpointer)

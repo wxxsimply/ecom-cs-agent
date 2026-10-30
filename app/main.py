@@ -107,6 +107,7 @@ def _stream_message(turn_id: str, message: Message, resumed: bool = False, recei
             "answer_status": status,
             "citations_used": [c.get("index") for c in citations],
             "receipt": receipt,
+            "progress": loads(message.progress_json, None),
             "usage": None,
             "latency_ms": 0,
         },
@@ -227,6 +228,7 @@ def chat_stream(req: ChatRequest, x_user_id: str | None = Header(default=None, a
             role="assistant",
             content="",
             status="streaming",
+            progress_json="[]",
             trace_id=f"tr_{secrets.token_hex(6)}",
         )
         db.add_all([user_msg, assistant])
@@ -276,6 +278,7 @@ def chat_stream(req: ChatRequest, x_user_id: str | None = Header(default=None, a
                     msg.content = result.answer
                     msg.status = result.status
                     msg.citations_json = json.dumps(result.citations or [], ensure_ascii=False)
+                    msg.progress_json = json.dumps(result.progress, ensure_ascii=False) if result.progress else "[]"
                     db.commit()
                     db.refresh(msg)
                 if result.citations:
@@ -296,6 +299,8 @@ def chat_stream(req: ChatRequest, x_user_id: str | None = Header(default=None, a
                         "answer_status": result.status,
                         "citations_used": [c.get("index") for c in (result.citations or [])],
                         "receipt": result.receipt,
+                        "progress": result.progress,
+                        "reason_code": result.refusal_code,
                         "usage": None,
                         "latency_ms": 0,
                     },
@@ -351,6 +356,7 @@ def chat_resume(req: ResumeRequest, x_user_id: str | None = Header(default=None,
                     msg.content = result.answer
                     msg.status = result.status
                     msg.citations_json = json.dumps(result.citations or [], ensure_ascii=False)
+                    msg.progress_json = json.dumps(result.progress, ensure_ascii=False) if result.progress else "[]"
                     db2.commit()
                     db2.refresh(msg)
                 for citation in result.citations or []:
@@ -370,6 +376,8 @@ def chat_resume(req: ResumeRequest, x_user_id: str | None = Header(default=None,
                         "answer_status": result.status,
                         "citations_used": [c.get("index") for c in (result.citations or [])],
                         "receipt": result.receipt,
+                        "progress": result.progress,
+                        "reason_code": result.refusal_code,
                         "usage": None,
                         "latency_ms": 0,
                     },
@@ -408,6 +416,7 @@ def list_messages(session_id: str, x_user_id: str | None = Header(default=None, 
                     "role": m.role,
                     "content": m.content,
                     "citations": _citations(m),
+                    "progress": loads(m.progress_json, None),
                     "status": m.status,
                     "created_at": m.created_at.isoformat(),
                 }
