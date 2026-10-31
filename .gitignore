@@ -9,6 +9,7 @@ __pycache__/
 data/checkpoints.db*
 logs/
 reports/
+backups/
 
 # Node
 node_modules/

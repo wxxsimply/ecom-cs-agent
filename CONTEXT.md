@@ -1,9 +1,9 @@
 # CONTEXT · 电商 AI 智能客服 Agent
 
-> 版本：v1.7<br>
+> 版本：v1.8<br>
 > 日期：2026-10-31<br>
-> 状态：P0-Lite v0.6 已实现；v0.7 Docker 数据持久化方案冻结，待实施<br>
-> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.6、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.2<br>
+> 状态：P0-Lite v0.7 Docker 数据持久化已实现，自测通过<br>
+> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.7、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.2<br>
 > 实现入口：[README.md](./README.md)；本地地址：<http://127.0.0.1:8000>
 
 ---
@@ -127,7 +127,7 @@
 >
 > **v0.6 状态说明**：D8/D9 已实现并通过 pytest/Playwright；截图见 [README](README.md)。
 >
-> **v0.7 状态说明**：D10 是 Docker 数据持久化目标，尚未实施；按第 10 节验收。
+> **v0.7 状态说明**：D10 已实现并通过 Docker volume/迁移/备份/容器重建验证。
 
 ### 3.2 P0-Lite 工程验收
 
@@ -153,7 +153,7 @@
 | A18 | 已签收留痕 | 所有 `delivered_at` 非空/已签收订单（含已退款）有 shipment；`events` ≥5 条且最后一条“已签收”；查询返回全部事件，不出现 `[-3:]`；`history_complete=true`；缺失时标记不完整而不伪造 |
 | A19 | 预期流程 | 7 步固定顺序；state 仅 done/current/pending；pending 灰色 + “待完成”；固定 hint；无未来日期/ETA；`events` 与 `progress` 分字段 |
 | A20 | 范围外兜底 | 范围外样例：抱歉 + 无法处理 + 4 项能力；`status=refused`、`reason_code=out_of_scope`；无 citation/tool；不误伤业务问题、问候、转人工 |
-| A21 | v0.6 回归 | 原 13 个 pytest + 5 个新增测试（共 18）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 |
+| A21 | v0.6 回归 | 原 13 个 pytest + 5 个 v0.6 测试 + 2 个 Docker 测试（共 20）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 |
 | A22 | Docker 卷 | `mewhelp_data` 存在；app 只挂 `mewhelp_data:/app/dbdata`；不再挂 `./data`；`APP_DB_PATH=/app/dbdata/app.db` |
 | A23 | 持久化 | 建会话/消息 → `docker compose down` → `up -d` → 数据仍在；删除/重建 app 容器不丢 |
 | A24 | 迁移 | 本地 `app.db` 一次性迁入卷；迁移前后订单/会话/退款计数一致；不合并 `data/app.db` 旧库 |
@@ -262,7 +262,7 @@
 
 | 项 | 状态 |
 | --- | --- |
-| P0-Lite 基础链路（SSE/RAG/订单/退款/引用/气泡/12 笔数据） | ✅ 已实现，18 个 pytest 通过（v0.5 时 13 个） |
+| P0-Lite 基础链路（SSE/RAG/订单/退款/引用/气泡/12 笔数据） | ✅ 已实现，20 个 pytest 通过（v0.5 时 13 个） |
 | 气泡消息 + 圆形反馈按钮 | ✅ 已实现 |
 | 订单/退款卡嵌套在气泡内 | ✅ 已实现（A15） |
 | 卡片 footer 内边距 + 订单两行布局 | ✅ 已实现（A16） |
@@ -318,7 +318,7 @@
 | A18 | 所有 `delivered_at` 非空/已签收订单（含已退款）有 shipment；events ≥5 条且最后一条“已签收”；返回全部事件；`history_complete=true`；缺失时 false + 工单，不伪造 | API 响应 + pytest `test_delivered_history_complete` |
 | A19 | 7 步固定顺序；state 仅 done/current/pending；pending 灰色 + “待完成”；hint 固定；无未来时间；`events/progress` 分字段 | API schema + Playwright `.timeline-step.pending`/`.timeline-hint` |
 | A20 | 范围外：抱歉 + 无法处理 + 4 项能力；无 citation/tool；`refused/out_of_scope`；不误伤“邮费/订单 1003/你好/转人工” | pytest 参数化 + Playwright 文本断言 |
-| A21 | 原 13 个 pytest + 5 个 v0.6 测试（共 18）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 | `python -m pytest -q` + Playwright 回归 |
+| A21 | 原 13 个 pytest + 5 个 v0.6 测试 + 2 个 Docker 测试（共 20）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 | `python -m pytest -q` + Playwright 回归 |
 
 ### 9.3 实施记录（已完成）
 
@@ -331,14 +331,14 @@
 ### 9.4 完成定义
 
 - ✅ A18–A21 全部通过，且有可复现命令/截图；
-- ✅ 原 13 个 pytest + 5 个新增测试（共 18）全过；
+- ✅ 原 13 个 pytest + 5 个 v0.6 测试 + 2 个 Docker 测试（共 20）全过；
 - ✅ 所有已签收种子订单可查完整轨迹；
 - ✅ 范围外样例不出现引用/工具调用；
 - ✅ 未通过 A18–A21 前不得称“v0.6 已完成”。
 
 ---
 
-## 10. v0.7 Docker 数据持久化（范围冻结，待实施）
+## 10. v0.7 Docker 数据持久化（已实现，自测通过）
 
 ### 10.1 范围冻结
 
@@ -358,26 +358,26 @@
 - MySQL 容器作为默认数据库（选项 B，需单独确认；预计 +2–3 人日）；
 - 多实例/共享卷并发写；
 - 知识库运行时上传/独立知识卷；
-- 跨 Docker 引擎/跨机器卷可移植承诺；
-- 本轮不修改 Compose/Dockerfile/代码。
+- 跨 Docker 引擎/跨机器卷可移植承诺。
 
 ### 10.2 验收标准
 
 | ID | 通过标准 |
 | --- | --- |
-| A22 | `docker volume inspect mewhelp_data` 存在；`docker inspect app` 只挂 `mewhelp_data:/app/dbdata`；无 `./data` bind mount |
-| A23 | 建会话/消息 → `docker compose down` → `up -d` 后数据仍在；`docker compose rm -f app` + `up -d` 不丢 |
-| A24 | 本地 `app.db` 迁入卷后，订单/会话/退款计数与源库一致；`data/app.db` 旧库不被误合并 |
-| A25 | 停 app 备份 `mewhelp_data` → 新卷恢复 → `/healthz` + 订单查询通过；升级流程禁用 `down -v` |
-| A26 | 镜像内无 `app.db/checkpoints.db`；新卷首次启动不出现旧数据；pytest 使用临时库、不触碰生产卷 |
+| A22 | ✅ `docker volume inspect mewhelp_data` 存在；`docker inspect app` 只挂 `mewhelp_data:/app/dbdata`；无 `./data` bind mount |
+| A23 | ✅ 建会话/消息 → `docker compose down` → `up -d` 后数据仍在；`docker compose rm -f app` + `up -d` 不丢 |
+| A24 | ✅ 本地 `app.db` 迁入卷后，订单/会话/退款计数与源库一致；`data/app.db` 旧库不被误合并 |
+| A25 | ✅ 停 app 备份 `mewhelp_data` → 新卷恢复 → `/healthz` + 订单查询通过；升级流程禁用 `down -v` |
+| A26 | ✅ 镜像内无 `app.db/checkpoints.db`；新卷首次启动不出现旧数据；pytest 使用临时库、不触碰生产卷 |
 
-### 10.3 实施顺序
+### 10.3 实施记录（已完成）
 
-1. `.dockerignore` 排除 DB/checkpoint。
-2. Compose 改 named volume + `/app/dbdata`。
-3. 一次性迁移脚本/说明：停本地、备份、写卷、核对计数。
-4. 备份/恢复 Runbook。
-5. 跑 A22–A26 + D10；更新 README/02 状态。
+1. ✅ `.dockerignore` 排除 DB/checkpoint；镜像内无 `*.db`。
+2. ✅ Compose 改 named volume + `/app/dbdata`；固定卷名 `mewhelp_data`。
+3. ✅ 本地 `app.db`（12 单/6 会话/12 消息）迁入卷；`data/app.db` 旧库不合并。
+4. ✅ 备份/恢复验证：tgz 恢复后 7 会话/14 消息。
+5. ✅ `docker compose down`/容器重建数据保留；A22–A26 + D10 通过。
+6. ✅ 验收后已恢复基线：12 订单 / 6 会话 / 12 消息（测试产生的 7/14 已回滚）。
 
 ### 10.4 决策
 
@@ -387,10 +387,10 @@
 
 ### 10.5 完成定义
 
-- A22–A26 全部通过，且有 volume inspect/迁移计数/备份恢复证据；
-- 现有 18 个 pytest + Playwright 不回归；
-- 本地服务与 Docker 不再双写两套业务库；
-- 未通过 A22–A26 前不得称“v0.7 已完成”。
+- ✅ A22–A26 全部通过，且有 volume inspect/迁移计数/备份恢复证据；
+- ✅ 现有 20 个 pytest + Playwright 不回归；
+- ✅ 本地服务与 Docker 不再双写两套业务库；
+- ✅ 未通过 A22–A26 前不得称“v0.7 已完成”。
 
 ---
 

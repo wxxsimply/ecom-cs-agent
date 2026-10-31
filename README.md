@@ -31,6 +31,22 @@ docker compose up --build
 # http://127.0.0.1:8080
 ```
 
+Docker 模式下业务库和 checkpoint 保存在 named volume `mewhelp_data` 的 `/app/dbdata`，不在宿主机 `app.db`：
+
+- `docker compose down` 保留数据；
+- `docker compose up -d --build` 保留数据；
+- **`docker compose down -v` 会删除卷**，升级时不要使用；
+- 备份示例：
+
+```powershell
+docker compose stop app
+docker run --rm -v mewhelp_data:/data -v "${PWD}\backups:/backup" alpine `
+  tar czf /backup/mewhelp-data.tgz -C /data .
+docker compose start app
+```
+
+当前本机迁移数据：12 笔订单、6 个会话、12 条消息，均在 `mewhelp_data` 卷中。
+
 ## 已实现（P0-Lite）
 
 - 10 类意图规则识别（含 `out_of_scope`）+ 订单号/退款原因槽位 + 指代改写。
@@ -43,7 +59,7 @@ docker compose up --build
 - SQLite 会话/消息/订单/退款/工单/反馈/中断/确认令牌；LangGraph `SqliteSaver` 支持同进程/重启恢复。
 - 对话气泡（助手/用户）、**订单/退款卡嵌入气泡**、圆形点赞/点踩/复制按钮、引用展示、会话历史、只读指标 API。
 - 测试账户 `u_demo` 内置 12 笔订单，覆盖待支付/已支付/已发货/已签收/已取消/已退款/高金额/特殊品类/超期。
-- 自测：`python -m pytest -q`（18 个测试）。
+- 自测：`python -m pytest -q`（20 个测试）。
 
 ## 当前降级/边界
 

@@ -4,11 +4,15 @@ services:
     ports:
       - "127.0.0.1:8080:8000"
     environment:
-      APP_DB_PATH: /app/data/app.db
-      CHECKPOINT_DB: /app/data/checkpoints.db
+      APP_DB_PATH: /app/dbdata/app.db
+      CHECKPOINT_DB: /app/dbdata/checkpoints.db
       KNOWLEDGE_DIR: /app/data/knowledge
       DEMO_USER_ID: u_demo
       LLM_MODE: mock
     volumes:
-      - ./data:/app/data
+      - mewhelp_data:/app/dbdata
     restart: unless-stopped
+
+volumes:
+  mewhelp_data:
+    name: mewhelp_data

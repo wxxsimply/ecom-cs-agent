@@ -1,0 +1,19 @@
+# Never bake data or local secrets into the image.
+app.db
+*.db
+*.db-*
+data/*.db
+data/*.db-*
+data/checkpoints.db*
+data/**/*.db
+
+.env
+.git
+.pytest_cache
+__pycache__
+*.pyc
+reports
+backups
+tests
+ui-*.png
+.edge-profile
