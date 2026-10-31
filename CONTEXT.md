@@ -1,9 +1,9 @@
 # CONTEXT · 电商 AI 智能客服 Agent
 
-> 版本：v1.6<br>
-> 日期：2026-10-30<br>
-> 状态：P0-Lite v0.6 物流留痕/进度/范围外兜底已实现，自测通过<br>
-> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.5、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.2<br>
+> 版本：v1.7<br>
+> 日期：2026-10-31<br>
+> 状态：P0-Lite v0.6 已实现；v0.7 Docker 数据持久化方案冻结，待实施<br>
+> 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.6、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.2<br>
 > 实现入口：[README.md](./README.md)；本地地址：<http://127.0.0.1:8000>
 
 ---
@@ -59,6 +59,7 @@
 | 售后 | 退款/换货确定性子流程；服务端金额；订单选择 interrupt/resume；确认令牌；取消/未支付/申诉出口 |
 | 记忆 | 近 6 轮原文 + 滚动摘要；`thread_id = session:turn`；跨轮不污染 |
 | 状态 | SQLite `AsyncSqliteSaver`；`chat_interrupts` 单一 pending 事实源；`GET /sessions/{id}/interrupt` |
+| 部署数据 | Docker named volume `mewhelp_data` 挂 `/app/dbdata`；`app.db` + `checkpoints.db` 同卷；禁止 bind mount/容器层持久化 |
 | 飞轮 | 点踩/拒答/自检失败入池；`question_events` 防刷；人工审核 + 手工回写；再答验证 |
 | 可观测 | Langfuse Cloud 或本地 NDJSON；trace_id/节点/检索/工具/token/耗时 |
 | 前端 | 对话页 + 气泡消息 + **气泡内嵌订单/退款卡片** + 卡片 footer 内边距 + 订单选项两行布局 + 物流 7 步 timeline（pending 灰色）+ 完整历史轨迹 + 引用抽屉 + 圆润点赞/点踩/复制按钮 + 只读运营页 |
@@ -82,6 +83,8 @@
 - ❌ 精确到达时间/ETA 预测；只展示“预计流程”，不展示未来具体时间。
 - ❌ `shipment_events` 规范化表/物流审计后台；P0-Lite 先把 `events_json` 做全量只追加。
 - ❌ 为已签收订单伪造缺失的物流节点；数据缺失只能标记 `history_complete=false` + 工单。
+- ❌ P0-Lite 默认引入 MySQL 容器；v0.7 默认 SQLite + Docker named volume，MySQL 为选项 B（需单独确认）。
+- ❌ 用容器可写层或宿主机 bind mount 作为业务数据持久化；v0.7 只接受 named volume。
 
 ### 2.3 完整 P0 追加内容（需单独确认）
 
@@ -103,7 +106,7 @@
 
 ## 3. 验收标准
 
-### 3.1 P0-Lite 必须全部通过的 9 个 Demo 场景
+### 3.1 P0-Lite 必须全部通过的 10 个 Demo 场景
 
 | # | 场景 | 操作 | 通过标准（二值） |
 | --- | --- | --- | --- |
@@ -116,12 +119,15 @@
 | D7 | 可观测 | 打开任一消息的 trace | 看到意图、路由、TopK、重排分、工具、token、耗时、gate_mode |
 | D8 | 物流留痕与进度 | 问「订单 1001 到哪了」 | 返回全部历史轨迹（≥5 条，含已签收）；展示 7 步预期流程；已完成/当前/待完成正确；pending 灰色 + 固定 hint；无未来时间 |
 | D9 | 范围外兜底 | 问「今天天气怎么样」 | 礼貌抱歉 + 明确“无法处理” + 4 项已实现能力；无引用、无工具；问「邮费」仍走 RAG，问「你好」仍问候 |
+| D10 | Docker 数据持久化 | `docker compose up` → 建会话/订单查询 → `down` → `up -d` | 数据仍在；`mewhelp_data` 卷存在；无 `./data` bind mount；容器重建不丢 |
 
-> D1–D9 必须在**同一套可启动环境**里连续演示通过；不能用 mock 替换关键链路（LLM/检索/DB 可用测试替身，但 Demo 必须真实跑）。
+> D1–D10 必须在**同一套可启动环境**里连续演示通过；不能用 mock 替换关键链路（LLM/检索/DB 可用测试替身，但 Demo 必须真实跑）。
 >
 > **v0.5 状态说明**：D4 的“卡片嵌入气泡”和 D5 的“物流逐行”已实现并通过 Playwright/接口自测；截图见 [README](README.md)。
 >
 > **v0.6 状态说明**：D8/D9 已实现并通过 pytest/Playwright；截图见 [README](README.md)。
+>
+> **v0.7 状态说明**：D10 是 Docker 数据持久化目标，尚未实施；按第 10 节验收。
 
 ### 3.2 P0-Lite 工程验收
 
@@ -148,12 +154,17 @@
 | A19 | 预期流程 | 7 步固定顺序；state 仅 done/current/pending；pending 灰色 + “待完成”；固定 hint；无未来日期/ETA；`events` 与 `progress` 分字段 |
 | A20 | 范围外兜底 | 范围外样例：抱歉 + 无法处理 + 4 项能力；`status=refused`、`reason_code=out_of_scope`；无 citation/tool；不误伤业务问题、问候、转人工 |
 | A21 | v0.6 回归 | 原 13 个 pytest + 5 个新增测试（共 18）全过；RAG/引用/退款确认/订单中断/气泡/SSE 不回归 |
+| A22 | Docker 卷 | `mewhelp_data` 存在；app 只挂 `mewhelp_data:/app/dbdata`；不再挂 `./data`；`APP_DB_PATH=/app/dbdata/app.db` |
+| A23 | 持久化 | 建会话/消息 → `docker compose down` → `up -d` → 数据仍在；删除/重建 app 容器不丢 |
+| A24 | 迁移 | 本地 `app.db` 一次性迁入卷；迁移前后订单/会话/退款计数一致；不合并 `data/app.db` 旧库 |
+| A25 | 备份恢复 | 停 app 后打包 `mewhelp_data`；新卷恢复后 `/healthz` + 订单查询通过；`down -v` 不在升级流程使用 |
+| A26 | 镜像卫生 | `.dockerignore` 排除 `*.db`/`checkpoints.db*`；新卷首次启动不出现旧数据；pytest 不触碰 `mewhelp_data` |
 
 ### 3.3 P0-Lite 量化基线（记录，不设 0.95 硬门槛）
 
 | 指标 | P0-Lite 要求 |
 | --- | --- |
-| 9 个 Demo | 100% 通过 |
+| 10 个 Demo | 100% 通过 |
 | 检索 Top1 smoke | 5 条手工政策/商品用例 Top1 命中 |
 | 评测集 | 100–150 条，含 gold chunk；20% holdout |
 | 意图准确率 | 记录基线，目标 ≥ 0.90（不达标先修，不阻断演示） |
@@ -187,7 +198,7 @@
 - [ ] 可运行代码仓库（后端/前端/Docker Compose/种子数据）。
 - [ ] 本文档 + 需求/方案文档 + README。
 - [ ] 知识库样例、评测集、评测报告（含四种检索方案对比）。
-- [ ] 9 场景 Demo 脚本 + 5 分钟讲解稿。
+- [ ] 10 场景 Demo 脚本 + 5 分钟讲解稿。
 - [ ] Runbook：启动、备份、排障、回滚、PII 删除。
 - [ ] 验收证据：trace 截图/ID、评测 JSON、PII 探针结果、压测报告。
 
@@ -217,7 +228,7 @@
 | M2 五路 + 工具 | D5 | 9 类意图抽查 ≥90%；订单/物流只查本人 |
 | M3 退款闭环 | D6 | 缺槽中断/恢复；金额服务端；确认令牌；写后回执 |
 | M4 飞轮 + 观测 | D8 | 点踩→入池→回写→再答；trace 可查 |
-| M5 P0-Lite 验收 | D10 | 9 场景全过；PII/越权/注入通过；报告齐全 |
+| M5 P0-Lite 验收 | D10 | 10 场景全过；PII/越权/注入通过；报告齐全 |
 | M6 完整 P0 | 18–22d | 180 条评测；Recall@8/AllSupportHit@8 达标；生产认证 |
 
 ---
@@ -327,9 +338,66 @@
 
 ---
 
-## 10. 参考
+## 10. v0.7 Docker 数据持久化（范围冻结，待实施）
+
+### 10.1 范围冻结
+
+**必须做（In Scope）**：
+
+| 模块 | 范围 |
+| --- | --- |
+| 数据卷 | 新建 named volume `mewhelp_data`；app 挂 `/app/dbdata`；`app.db`/`checkpoints.db` 同卷 |
+| Compose | 删除 `./data:/app/data`；`APP_DB_PATH=/app/dbdata/app.db`、`CHECKPOINT_DB=/app/dbdata/checkpoints.db`、`KNOWLEDGE_DIR=/app/data/knowledge` |
+| 镜像 | 补 `.dockerignore`，排除 `app.db`、`data/**/*.db`、`checkpoints.db*`；知识库保留在镜像 |
+| 迁移 | 停本地写入 → 备份 → 本地 `app.db` 写入卷 → 核对订单/会话/退款计数；不合并旧 Docker 库 |
+| 运维 | 备份/恢复脚本；`docker compose down` 保留数据；`down -v` 仅作显式清理 |
+| 验收 | A22–A26；D10 |
+
+**明确不做（Out of Scope）**：
+
+- MySQL 容器作为默认数据库（选项 B，需单独确认；预计 +2–3 人日）；
+- 多实例/共享卷并发写；
+- 知识库运行时上传/独立知识卷；
+- 跨 Docker 引擎/跨机器卷可移植承诺；
+- 本轮不修改 Compose/Dockerfile/代码。
+
+### 10.2 验收标准
+
+| ID | 通过标准 |
+| --- | --- |
+| A22 | `docker volume inspect mewhelp_data` 存在；`docker inspect app` 只挂 `mewhelp_data:/app/dbdata`；无 `./data` bind mount |
+| A23 | 建会话/消息 → `docker compose down` → `up -d` 后数据仍在；`docker compose rm -f app` + `up -d` 不丢 |
+| A24 | 本地 `app.db` 迁入卷后，订单/会话/退款计数与源库一致；`data/app.db` 旧库不被误合并 |
+| A25 | 停 app 备份 `mewhelp_data` → 新卷恢复 → `/healthz` + 订单查询通过；升级流程禁用 `down -v` |
+| A26 | 镜像内无 `app.db/checkpoints.db`；新卷首次启动不出现旧数据；pytest 使用临时库、不触碰生产卷 |
+
+### 10.3 实施顺序
+
+1. `.dockerignore` 排除 DB/checkpoint。
+2. Compose 改 named volume + `/app/dbdata`。
+3. 一次性迁移脚本/说明：停本地、备份、写卷、核对计数。
+4. 备份/恢复 Runbook。
+5. 跑 A22–A26 + D10；更新 README/02 状态。
+
+### 10.4 决策
+
+**默认选 SQLite + Docker named volume**：满足“数据在 Docker 管理下持久化”，不改变现有 SQLAlchemy/LangGraph 实现，风险最小。
+
+**不选 MySQL 作为本轮默认**：MySQL 容器是完整 P0 的 16.2 方向，需要 ORM/迁移/数据搬迁/停机窗口；若你明确要“数据库服务”而不是“Docker 持久卷”，再切换到 02 §25.7 选项 B，不能把 SQLite 卷冒充 MySQL。
+
+### 10.5 完成定义
+
+- A22–A26 全部通过，且有 volume inspect/迁移计数/备份恢复证据；
+- 现有 18 个 pytest + Playwright 不回归；
+- 本地服务与 Docker 不再双写两套业务库；
+- 未通过 A22–A26 前不得称“v0.7 已完成”。
+
+---
+
+## 11. 参考
 
 - 需求基线：[docs/01-需求澄清.md](./docs/01-需求澄清.md)
 - 技术方案：[docs/02-方案设计.md](./docs/02-方案设计.md)
+- Docker 持久化：[docs/02-方案设计.md](./docs/02-方案设计.md) 第 25 章
 - v0.6 增量方案：[docs/05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md)
 - 文档索引：[docs/README.md](./docs/README.md)
