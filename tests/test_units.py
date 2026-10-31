@@ -29,7 +29,7 @@ def make_order(status: str = "delivered", paid: float = 299.0, goods: float = 29
 def test_intent_and_order_id():
     assert classify("邮费是多少") == "policy_qa"
     assert classify("我要退款，质量问题") == "refund_request"
-    assert classify("转人工") == "human_handoff"
+    assert classify("转人工") == "human_request"
     assert extract_order_id("订单 1001 到哪了") == "1001"
     assert "1001" in rewrite_query("那它能退吗", [{"role": "user", "content": "订单 1001 到货了吗"}])
 

@@ -101,13 +101,14 @@ def test_logistics_sse_includes_progress():
         assert all(step["state"] == "done" for step in done["progress"]["steps"])
 
 
-def test_out_of_scope_apologizes_and_lists_capabilities():
+def test_out_of_scope_answers_with_boundary_and_next_steps():
     with TestClient(app) as client:
         events = chat(client, "今天天气怎么样", "t-scope-1")
         answer = "".join(e["data"].get("delta", "") for e in events if e["event"] == "token")
-        assert "抱歉" in answer
-        assert "无法处理" in answer
-        assert "查询订单状态" in answer and "退款" in answer
+        assert "我理解你想问的是" in answer
+        assert "无法读取实时天气" in answer
+        assert "查订单" in answer and "退款" in answer
+        assert not answer.startswith("抱歉，这个问题我暂时无法处理")
         assert not any(e["event"] == "citation" for e in events)
         done = next(e["data"] for e in events if e["event"] == "done")
         assert done["status"] == "refused"

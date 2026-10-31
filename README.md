@@ -10,7 +10,7 @@
 
 ![已签收完整历史轨迹](docs/assets/ui-logistics-delivered.png)
 
-![范围外礼貌兜底](docs/assets/ui-out-of-scope.png)
+![Answer-first 范围外回答](docs/assets/ui-answer-first.png)
 
 ![退款确认与回执](docs/assets/ui-refund.png)
 
@@ -49,17 +49,18 @@ docker compose start app
 
 ## 已实现（P0-Lite）
 
-- 10 类意图规则识别（含 `out_of_scope`）+ 订单号/退款原因槽位 + 指代改写。
+- 14 类意图规则识别（含 `out_of_scope`/`needs_clarify`）+ 订单号/退款原因槽位 + 指代改写。
 - 本地混合检索：BM25 + 字符 n-gram 余弦 + RRF + 轻量 rerank；政策 Top8 / 商品 Top5。
 - SSE 对话：`meta → citation → token → done`；退款/订单选择使用 `interrupt`，`/chat/resume` 继续。
 - 订单/物流查询；退款资格、金额、确认令牌、退款申请；取消/未支付/转人工出口。
 - 物流完整历史：已签收订单 ≥5 条轨迹，最后一条“已签收”；查询不截断。
 - 物流 7 步预期流程：done/current/pending，pending 灰色“待完成”，固定灰色提示，不展示未来 ETA。
-- 范围外问题：抱歉 + 无法处理 + 4 项已实现能力；不 RAG、不工具、不编造。
+- Answer-first：范围外问题先复述 + 边界 + 可执行下一步；非紧急不实时转人工，投诉先共情，紧急走白名单。
+- 50 条“机械回复/答非所问”评测集；`pytest` 全量运行。
 - SQLite 会话/消息/订单/退款/工单/反馈/中断/确认令牌；LangGraph `SqliteSaver` 支持同进程/重启恢复。
 - 对话气泡（助手/用户）、**订单/退款卡嵌入气泡**、圆形点赞/点踩/复制按钮、引用展示、会话历史、只读指标 API。
 - 测试账户 `u_demo` 内置 12 笔订单，覆盖待支付/已支付/已发货/已签收/已取消/已退款/高金额/特殊品类/超期。
-- 自测：`python -m pytest -q`（20 个测试）。
+- 自测：`python -m pytest -q`（22 个测试）。
 
 ## 当前降级/边界
 

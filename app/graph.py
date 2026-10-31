@@ -31,6 +31,23 @@ CAPABILITIES = (
 )
 
 
+def _scope_boundary(query: str) -> str:
+    q = query or ""
+    if any(k in q for k in ("天气", "新闻", "股票", "彩票")):
+        return "我无法读取实时天气/新闻/行情数据，也不能提供投资建议。"
+    if any(k in q for k in ("代码", "程序", "论文", "翻译")):
+        return "我不能代写代码/论文或执行程序，也不能替代专业翻译。"
+    if any(k in q for k in ("头疼", "药", "病", "医生", "治疗")):
+        return "我不能做医疗诊断或推荐药物，这类问题需要专业医生判断。"
+    if any(k in q for k in ("笑话", "故事", "聊天")):
+        return "我主要处理商城客服问题，不适合长时间闲聊。"
+    if any(k in q for k in ("别人", "他人", "其他人的订单")):
+        return "出于隐私和账号安全，我不能查询或操作他人的订单、退款或银行卡。"
+    if any(k in q for k in ("改地址", "改收货地址")):
+        return "已支付订单的地址修改受支付/物流状态限制，我不能直接承诺修改成功，但可以帮你确认条件并记录处理。"
+    return "这件事超出我当前能直接办理的范围，我不能编造答案或承诺结果。"
+
+
 class State(TypedDict, total=False):
     session_id: str
     turn_id: str
@@ -85,8 +102,12 @@ def understand(state: State) -> dict:
 
 def route(state: State) -> str:
     intent = state.get("intent")
-    if intent == "human_handoff" or intent == "complaint":
-        return "handoff"
+    if intent == "emergency":
+        return "emergency"
+    if intent in {"human_request", "human_handoff"}:
+        return "human_request"
+    if intent == "complaint":
+        return "complaint"
     if intent == "refund_request" or intent == "after_sales":
         return "after_sales"
     if intent in {"order_query", "logistics_query"}:
@@ -95,11 +116,15 @@ def route(state: State) -> str:
         return "product_tool"
     if intent in {"policy_qa", "product_qa"}:
         return "rag"
+    if intent == "general_qa":
+        return "general_qa"
+    if intent == "needs_clarify":
+        return "clarify"
     if intent == "chitchat":
         return "generate"
     if intent == "out_of_scope":
         return "out_of_scope"
-    return "handoff"
+    return "human_request"
 
 
 def resolve_order(state: State) -> dict:
@@ -203,6 +228,17 @@ def rag(state: State) -> dict:
 
 
 def after_sales_check(state: State) -> dict:
+    if not state.get("reason_code"):
+        return {
+            "answer": (
+                "可以，我先帮你判断退款/退货资格。请问是以下哪种情况：\n"
+                "- 质量问题（坏了/破损/故障）\n"
+                "- 发错货/少件/漏发\n"
+                "- 不想要了（无理由）\n\n"
+                "你回一个关键词即可，我再给你具体金额和下一步。"
+            ),
+            "status": "ok",
+        }
     with SessionLocal() as db:
         order = _db_order(db, state.get("order_id") or "", state["user_id"])
         if order is None:
@@ -293,17 +329,104 @@ def generate(state: State) -> dict:
         query = state.get("query", "")
         if any(key in query for key in ("你能做什么", "可以做什么", "会什么", "能帮我做什么")):
             return {"answer": f"我是小猫智能客服。\n\n{CAPABILITIES}", "status": "ok"}
+        if any(key in query for key in ("机器人", "AI", "ai")):
+            return {
+                "answer": (
+                    "我是小猫 AI 客服，不是真人。\n\n"
+                    "我可以查订单/物流、判断退款资格、解释平台规则；"
+                    "如果遇到安全、诈骗或高价值异常，可以走紧急人工。"
+                ),
+                "status": "ok",
+            }
         return {"answer": "你好，我是小猫智能客服，可以帮你查订单、物流、退换货和平台规则。", "status": "ok"}
     return {"answer": "我先帮你转人工确认一下。", "status": "handoff"}
 
 
 def out_of_scope(state: State) -> dict:
+    query = state.get("query", "")
+    boundary = _scope_boundary(query)
     answer = (
-        "抱歉，这个问题我暂时无法处理，我不能直接帮你完成。\n\n"
-        f"{CAPABILITIES}\n\n"
-        "你可以直接说“查订单 1001”或“我要退款”。"
+        f"我理解你想问的是「{query}」。\n\n"
+        f"{boundary}\n\n"
+        "不过我可以继续帮你：\n"
+        "- 查订单/物流进度\n"
+        "- 判断退款/退货资格并提交申请\n"
+        "- 查运费、会员、积分、发票等平台规则\n\n"
+        "你可以直接说“查订单 1001”“我要退款”或“邮费多少”，我马上处理。"
     )
     return {"answer": answer, "status": "refused", "refusal_code": "out_of_scope"}
+
+
+def complaint(state: State) -> dict:
+    query = state.get("query", "")
+    answer = (
+        f"我理解你对「{query}」的体验不满意，先向你道歉。\n\n"
+        "我可以先帮你把问题落到具体处理上：\n"
+        "- 如果是订单/物流问题，我可以立刻查当前状态\n"
+        "- 如果是退款/售后问题，我可以先判断资格和金额\n"
+        "- 如果确实需要人工复核，我会记录工单，不让问题停在“已转人工”\n\n"
+        "请告诉我订单号或具体发生了什么，我先处理第一步。"
+    )
+    return {"answer": answer, "status": "ok"}
+
+
+def human_request(state: State) -> dict:
+    context = {"intent": "human_request", "query": state.get("query"), "order_id": state.get("order_id")}
+    with SessionLocal() as db:
+        ticket = create_ticket(db, state["session_id"], state["user_id"], "async_handoff", context)
+        enqueue_question(
+            db,
+            question=state.get("query", ""),
+            session_id=state["session_id"],
+            message_id=None,
+            user_id=state["user_id"],
+            source_type="human_request",
+        )
+    answer = (
+        "可以，我先不让你排队空等。\n\n"
+        "你可以先直接说“查订单 1001”“我要退款”或“物流到哪了”，我能马上处理大部分问题。\n\n"
+        f"如果仍需人工复核，我已记录异步工单 **{ticket.id}**，会有同事按顺序跟进；"
+        "如果事情涉及安全、诈骗、盗刷或人身风险，请直接说“紧急”，我会优先标记。"
+    )
+    return {"answer": answer, "status": "handoff"}
+
+
+def emergency(state: State) -> dict:
+    context = {"intent": "emergency", "query": state.get("query")}
+    with SessionLocal() as db:
+        ticket = create_ticket(db, state["session_id"], state["user_id"], "emergency", context)
+    answer = (
+        "这属于需要优先处理的情况。\n\n"
+        "如果涉及诈骗/盗刷，请立即联系银行冻结卡片并拨打 110；如果涉及人身安全，请先确保自身安全并报警。\n\n"
+        f"我已创建紧急工单 **{ticket.id}** 并标记优先处理。请再补充订单号/发生了什么，我继续帮你整理信息。"
+    )
+    return {"answer": answer, "status": "handoff"}
+
+
+def clarify(state: State) -> dict:
+    with SessionLocal() as db:
+        rows = recent_orders(db, state["user_id"], limit=3)
+        options = [f"订单 {o.id}（{o.title}，{o.status}）" for o in rows]
+    option_text = "\n".join(f"- {item}" for item in options) if options else "- 你可以在订单页复制订单号"
+    answer = (
+        "我理解你在指一个具体对象，但还缺一点信息。\n\n"
+        f"你是在问下面哪一个？\n{option_text}\n\n"
+        "直接回复订单号，或说“第一个/第二个”，我就按它继续查。"
+    )
+    return {"answer": answer, "status": "ok"}
+
+
+def general_qa(state: State) -> dict:
+    query = state.get("query", "")
+    answer = (
+        f"我理解你想了解「{query}」。\n\n"
+        "这类问题我可以先给一般性建议：\n"
+        "- 先确认使用场景/预算/规格，再比较商品\n"
+        "- 涉及平台政策、金额、时效时，以订单页和知识库为准\n"
+        "- 如果你告诉我具体商品或订单，我可以查实时信息\n\n"
+        "你可以补充商品名/订单号，或直接问“邮费多少”“订单 1001 到哪了”。"
+    )
+    return {"answer": answer, "status": "ok"}
 
 
 def handoff(state: State) -> dict:
@@ -323,7 +446,13 @@ def handoff(state: State) -> dict:
             user_id=state["user_id"],
             source_type="handoff",
         )
-    return {"answer": f"已为你转接人工客服（工单 {ticket.id}），请稍候。", "status": "handoff"}
+    return {
+        "answer": (
+            f"这项操作需要人工复核，我已创建异步审核工单 **{ticket.id}**，"
+            "不会让你在实时队列里空等；有结果会按工单顺序跟进。"
+        ),
+        "status": "handoff",
+    }
 
 
 def cancel_ack(state: State) -> dict:
@@ -342,6 +471,11 @@ def build_graph(checkpointer):
     builder.add_node("execute_refund", execute_refund)
     builder.add_node("generate", generate)
     builder.add_node("out_of_scope", out_of_scope)
+    builder.add_node("complaint", complaint)
+    builder.add_node("human_request", human_request)
+    builder.add_node("emergency", emergency)
+    builder.add_node("clarify", clarify)
+    builder.add_node("general_qa", general_qa)
     builder.add_node("handoff", handoff)
     builder.add_node("cancel_ack", cancel_ack)
 
@@ -349,7 +483,7 @@ def build_graph(checkpointer):
     builder.add_conditional_edges(
         "understand",
         route,
-        {"rag": "rag", "tools": "resolve_order", "product_tool": "product_tool", "after_sales": "resolve_order", "handoff": "handoff", "generate": "generate", "out_of_scope": "out_of_scope"},
+        {"rag": "rag", "tools": "resolve_order", "product_tool": "product_tool", "after_sales": "resolve_order", "handoff": "handoff", "generate": "generate", "out_of_scope": "out_of_scope", "complaint": "complaint", "human_request": "human_request", "emergency": "emergency", "clarify": "clarify", "general_qa": "general_qa"},
     )
     builder.add_edge("rag", "generate")
     builder.add_edge("product_tool", "generate")
@@ -372,6 +506,11 @@ def build_graph(checkpointer):
     builder.add_edge("execute_refund", "generate")
     builder.add_edge("generate", END)
     builder.add_edge("out_of_scope", END)
+    builder.add_edge("complaint", END)
+    builder.add_edge("human_request", END)
+    builder.add_edge("emergency", END)
+    builder.add_edge("clarify", END)
+    builder.add_edge("general_qa", END)
     builder.add_edge("handoff", END)
     builder.add_edge("cancel_ack", END)
     return builder.compile(checkpointer=checkpointer)
