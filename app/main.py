@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.after_sales_agent import plan_ticket
 from app.chat import get_pending_interrupt, resume_turn, run_turn
 from app.config import settings
 from app.db import SessionLocal, get_db, init_db, loads, utcnow
@@ -42,6 +43,12 @@ class FeedbackRequest(BaseModel):
     rating: str
     reason: str | None = None
     comment: str | None = None
+
+
+class AfterSalesPlanRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=settings.max_input_chars)
+    order_no: str | None = None
+    facts: dict = Field(default_factory=dict)
 
 
 def sse(event: str, data: dict, seq: int, turn_id: str) -> str:
@@ -452,6 +459,12 @@ def feedback(message_id: str, req: FeedbackRequest, x_user_id: str | None = Head
                 source_type="feedback",
             )
         return {"ok": True, "id": row.id}
+
+
+@app.post("/api/v1/after-sales/plan")
+def after_sales_plan(req: AfterSalesPlanRequest):
+    """P1 minimal slice: deterministic ticket decision; no execution/approval persistence yet."""
+    return {"plan": plan_ticket(req.model_dump()).to_dict()}
 
 
 @app.get("/api/v1/orders")

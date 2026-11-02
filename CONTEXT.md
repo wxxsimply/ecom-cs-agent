@@ -1,8 +1,8 @@
 # CONTEXT · 电商 AI 智能客服 Agent
 
-> 版本：v2.1<br>
+> 版本：v2.2<br>
 > 日期：2026-11-03<br>
-> 状态：P0-Lite v0.8 已实现；P1 商家售后 Copilot 需求/验收已冻结，待实施<br>
+> 状态：P0-Lite v0.8 已实现；P1a 最小切片（ticket planner + 75 条评测 + API）已实现；完整 P1a/G2 待实施<br>
 > 上游依据：[01-需求澄清.md](./docs/01-需求澄清.md) v0.4、[02-方案设计.md](./docs/02-方案设计.md) v0.7、[05-物流留痕与兜底回复.md](./docs/05-物流留痕与兜底回复.md) v0.2、[06-智能客服从能答到能解决.md](./docs/06-智能客服从能答到能解决.md) v0.1、[10-商家售后Agent方案.md](./docs/10-商家售后Agent方案.md) v0.2<br>
 > 实现入口：[README.md](./README.md)；本地地址：<http://127.0.0.1:8000>
 
@@ -590,6 +590,20 @@ P1 只做：
 - 执行调用 ERP，不自造执行引擎；幂等、审批、对账、回滚。
 - `tickets_v1` 为合成数据，只能做回归；真实 holdout 才能证明外部有效性。
 - 本阶段不写代码；先完成方案/验收冻结，再按 10 §11 实施。
+
+### 12.4 已实现的最小切片（P1a）
+
+| 项 | 状态 |
+| --- | --- |
+| `app/after_sales_agent.py`：确定性 ticket planner | ✅ 已实现 |
+| `POST /api/v1/after-sales/plan` | ✅ 已实现（preview-only，不执行/不写审批） |
+| `scripts/eval_tickets.py`：75 条 dev/holdout 评测 | ✅ 已实现 |
+| `tests/test_after_sales_agent.py` | ✅ 已实现 |
+| 75 条合成集 action/amount/review | ✅ 75/75（规则一致性，不代表真实效果） |
+| 工作台/审批持久化/ERP adapter | ❌ 未实现 |
+| 真实模型/真实 holdout/G2 | ❌ 未执行 |
+
+**重要限制**：75 条标签由同一套规则推导，100% 只能说明“规则一致”，不能说明真实商家效果；完整 P1a 仍缺工单/审批/审计工作台与真实模型评测。当前测试总数 **29**。
 
 ---
 

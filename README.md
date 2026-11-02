@@ -57,10 +57,11 @@ docker compose start app
 - 物流 7 步预期流程：done/current/pending，pending 灰色“待完成”，固定灰色提示，不展示未来 ETA。
 - Answer-first：范围外问题先复述 + 边界 + 可执行下一步；非紧急不实时转人工，投诉先共情，紧急走白名单。
 - 50 条“机械回复/答非所问”评测集；`pytest` 全量运行。
+- P1a 最小切片：`POST /api/v1/after-sales/plan`（preview-only）+ 75 条 ticket planner 评测；只做判责建议，不执行退款。
 - SQLite 会话/消息/订单/退款/工单/反馈/中断/确认令牌；LangGraph `SqliteSaver` 支持同进程/重启恢复。
 - 对话气泡（助手/用户）、**订单/退款卡嵌入气泡**、圆形点赞/点踩/复制按钮、引用展示、会话历史、只读指标 API。
 - 测试账户 `u_demo` 内置 12 笔订单，覆盖待支付/已支付/已发货/已签收/已取消/已退款/高金额/特殊品类/超期。
-- 自测：`python -m pytest -q`（22 个测试）。
+- 自测：`python -m pytest -q`（29 个测试）。
 
 ## 当前降级/边界
 
@@ -74,5 +75,7 @@ docker compose start app
 - `app/`：FastAPI、LangGraph、检索、退款、SQLite 模型。
 - `web/`：原生 HTML/CSS/JS 对话页。
 - `data/knowledge/`：运费/退换/商品 FAQ 样例。
+- `data/eval/`：75 条脱敏工单数据集（50 dev / 25 holdout）与校验脚本。
+- `research/`：求职作品证据包（招募话术、访谈提纲、脱敏规则、评分表、作品集叙事）。
 - `tests/`：API/SSE/退款/检索单元与集成测试。
-- `docs/`：需求、方案、索引；根目录 `CONTEXT.md` 为执行范围与验收基线。
+- `docs/`：需求、方案、调研、索引；根目录 `CONTEXT.md` 为执行范围与验收基线。
