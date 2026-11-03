@@ -24,6 +24,28 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 打开 <http://127.0.0.1:8000>。演示账号为 `u_demo`，前端会自动带 `X-User-Id`。
 
+### 在 VS Code 跑测试
+
+本项目已带 `.venv` 配置；重新拉代码后先建环境：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+VS Code：
+
+1. `Ctrl+Shift+P` → `Python: Select Interpreter` → 选择 `.venv\Scripts\python.exe`；
+2. 左侧 **Testing** 图标 → `Run All Tests`；
+3. 或 `Ctrl+Shift+B` 运行 `pytest: full suite`；
+4. 或终端：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+已预置 `.vscode/settings.json`、`launch.json`、`tasks.json` 和扩展推荐，不需要手改路径。
+
 也可以：
 
 ```powershell
