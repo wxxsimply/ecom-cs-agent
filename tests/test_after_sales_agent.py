@@ -14,7 +14,7 @@ CASES = [json.loads(line) for line in (ROOT / "data" / "eval" / "tickets_v1.json
 
 def test_ticket_planner_hard_gates_on_synthetic_set():
     """Synthetic labels are rule-derived; this checks rule consistency, not market accuracy."""
-    assert len(CASES) == 75
+    assert len(CASES) == 200
     intent_ok = 0
     for case in CASES:
         plan = plan_ticket(case)

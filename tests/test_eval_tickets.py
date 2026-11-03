@@ -6,9 +6,9 @@ from scripts.validate_eval_tickets import validate
 def test_ticket_dataset_is_valid():
     errors, rows = validate()
     assert errors == []
-    assert len(rows) == 75
-    assert sum(row["split"] == "dev" for row in rows) == 50
-    assert sum(row["split"] == "holdout" for row in rows) == 25
+    assert len(rows) == 200
+    assert sum(row["split"] == "dev" for row in rows) == 150
+    assert sum(row["split"] == "holdout" for row in rows) == 50
     assert len({row["expected"]["intent"] for row in rows}) >= 13
 
 

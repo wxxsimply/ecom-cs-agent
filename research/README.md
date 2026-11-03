@@ -15,7 +15,7 @@
 
 ## 配套数据
 
-- [脱敏工单数据集](../data/eval/README.md)：75 条合成工单，50 dev / 25 holdout，含金额、人工标记、政策引用。
+- [脱敏工单数据集](../data/eval/README.md)：200 条合成工单，150 dev / 50 holdout，含金额、人工标记、政策引用。
 - 生成/校验：`python scripts/build_eval_tickets.py`、`python scripts/validate_eval_tickets.py`。
 - 真实工单只放 `data/eval/private/`（已 gitignore），不提交。
 

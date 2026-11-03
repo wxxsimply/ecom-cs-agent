@@ -157,6 +157,144 @@ TICKETS = [
 ]
 
 
+def _more_tickets() -> list[tuple]:
+    """125 additional cases: T-076..T-200.
+
+    Refund action/amount is derived from the same rule function, so the
+    dataset cannot silently drift from refunds.py. The goal is coverage of
+    synonyms/edge combinations, not independent labelling.
+    """
+    items: list[tuple] = []
+
+    def add(message, order_no, intent, action, reason=None, refs=None, handoff=None, notes="", history=()):
+        tid = f"T-{76 + len(items):03d}"
+        items.append((tid, message, order_no, intent, action, reason, refs or [], handoff, notes, history))
+
+    # 30 policy QA
+    policies = [
+        ("满 199 包邮吗？", ["shipping.md#1"]),
+        ("西藏运费怎么算？", ["shipping.md#3"]),
+        ("银卡会员免几次运费？", ["shipping.md#5", "faq.md#3"]),
+        ("积分能抵多少运费？", ["shipping.md#6"]),
+        ("七天无理由从哪天开始算？", ["returns.md#1"]),
+        ("质量问题 15 天内都能退吗？", ["returns.md#2"]),
+        ("定制品能无理由退吗？", ["returns.md#3"]),
+        ("退款 600 元要审核吗？", ["returns.md#5"]),
+        ("退货运费谁承担？", ["shipping.md#7"]),
+        ("港澳台发货吗？", ["shipping.md#4"]),
+        ("电子发票怎么开？", ["faq.md#4"]),
+        ("能开发票吗？", ["faq.md#4"]),
+        ("会员权益有哪些？", ["faq.md#3", "shipping.md#5"]),
+        ("满 99 包邮吗？", ["shipping.md#1"]),
+        ("内蒙古要加运费吗？", ["shipping.md#3"]),
+        ("积分抵运费有上限吗？", ["shipping.md#6"]),
+        ("无理由退货要满足什么条件？", ["returns.md#1"]),
+        ("质量问题退货运费谁出？", ["returns.md#2"]),
+        ("定制商品可以退货吗？", ["returns.md#3"]),
+        ("超过 500 的退款怎么处理？", ["returns.md#5"]),
+        ("退货运费规则是什么？", ["shipping.md#7"]),
+        ("海外能发货吗？", ["shipping.md#4"]),
+        ("发票可以开企业抬头吗？", ["faq.md#4"]),
+        ("金卡会员有什么权益？", ["faq.md#3", "shipping.md#5"]),
+        ("包邮门槛是多少？", ["shipping.md#1"]),
+        ("新疆要加价吗？", ["shipping.md#3"]),
+        ("积分怎么用？", ["shipping.md#6"]),
+        ("无理由几天内可以退？", ["returns.md#1"]),
+        ("质量问题多久内处理？", ["returns.md#2"]),
+        ("定制款退货规则？", ["returns.md#3"]),
+        ("退款审核线是多少？", ["returns.md#5"]),
+    ]
+    for message, refs in policies:
+        add(message, None, "policy_qa", "answer", refs=refs, notes="政策咨询")
+
+    # 20 product/general QA
+    for message in [
+        "耳机续航多久？", "手机内存多大？", "键盘支持热插拔吗？", "保温杯容量多少？",
+        "连衣裙有蓝色吗？", "运动鞋偏码吗？", "充电宝能上飞机吗？", "音箱支持蓝牙吗？",
+        "羽绒服保暖吗？", "背包能放电脑吗？",
+        "发货一般几天？", "能议价吗？", "支持花呗吗？", "发什么快递？",
+        "现在有优惠吗？", "怎么选跑鞋？", "可以货到付款吗？", "你们家售后好吗？",
+        "有赠品吗？",
+    ]:
+        add(message, None, "product_qa" if "耳机" in message or "手机" in message or "键盘" in message or "保温杯" in message or "连衣裙" in message or "鞋" in message or "充电宝" in message or "音箱" in message or "羽绒服" in message or "背包" in message else "general_qa", "answer", notes="商品/一般咨询")
+
+    # 20 order/logistics
+    for order_no in ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1010", "1011", "1012"]:
+        add(f"查订单 {order_no}", order_no, "order_query", "query_order", notes="订单查询")
+    for order_no, message in [
+        ("1003", "1003 物流到哪了？"), ("1004", "1004 签收了吗？"),
+        ("1006", "1006 快递到哪了？"), ("1011", "1011 到哈尔滨了吗？"),
+        ("1001", "1001 物流什么状态？"), ("1002", "1002 快递发了吗？"),
+        ("1005", "1005 物流签收了吗？"), ("1010", "1010 发货到哪了？"),
+        ("1012", "1012 物流状态？"), ("1007", "1007 快递到哪了？"),
+    ]:
+        add(message, order_no, "logistics_query", "query_logistics", notes="物流查询")
+
+    # 25 refund cases, action derived from rules
+    refund_cases = [
+        ("1001", "耳机有杂音，退款", "quality"), ("1001", "耳机不想要了", "no_reason"),
+        ("1001", "耳机发错颜色了", "wrong_item"), ("1004", "显示器坏了要退", "quality"),
+        ("1004", "显示器不想要了", "no_reason"), ("1004", "少发了一个配件", "missing"),
+        ("1004", "屏幕碎了要退款", "damaged"), ("1005", "裙子起球，质量问题", "quality"),
+        ("1005", "裙子不想要了", "no_reason"), ("1006", "鞋子开胶了", "quality"),
+        ("1006", "鞋子不想要了", "no_reason"), ("1007", "项链刻错字了", "quality"),
+        ("1007", "定制款不想要了", "no_reason"), ("1002", "保温杯不想要了", "no_reason"),
+        ("1002", "保温杯有异味", "quality"), ("1003", "键盘发错货了", "wrong_item"),
+        ("1003", "键盘不想要了", "no_reason"), ("1010", "手机不想要了", "no_reason"),
+        ("1010", "手机屏幕故障", "quality"), ("1011", "羽绒服不想要了", "no_reason"),
+        ("1011", "羽绒服破损", "damaged"), ("1008", "充电宝退款", None),
+        ("1009", "音箱退款", None), ("1012", "背包退款", None),
+        ("1006", "鞋子少发一只", "missing"),
+    ]
+    for order_no, message, reason in refund_cases:
+        eligible, _, _, _ = refund_decision(order_no, reason or "no_reason")
+        add(
+            message,
+            order_no,
+            "refund_request",
+            "refund_apply" if eligible else "refund_reject",
+            reason,
+            refs=["returns.md#2"] if reason in {"quality", "wrong_item", "damaged", "missing"} else ["returns.md#1"],
+            notes="退款判责",
+        )
+
+    # 10 after-sales: exchange/address/return-without-reason
+    for order_no, message in [
+        ("1006", "鞋码小了想换大一码"), ("1005", "裙子想换颜色"),
+        ("1001", "耳机想换新款"), ("1002", "保温杯想换颜色"),
+        ("1004", "显示器想换一台"), ("1007", "定制款能换吗"),
+    ]:
+        add(message, order_no, "after_sales", "exchange_apply", notes="换货")
+    add("1001 改地址到北京", "1001", "after_sales", "handoff", handoff="unsupported_action", notes="改地址需运营审核")
+    add("1011 修改收货地址", "1011", "after_sales", "handoff", handoff="unsupported_action", notes="改地址需运营审核")
+    add("1006 想退货", "1006", "after_sales", "clarify", notes="缺退货原因")
+    add("1004 只退一半可以吗", "1004", "refund_request", "handoff", handoff="partial_refund", notes="部分退未支持")
+
+    # 10 complaint/human/emergency/out-of-scope
+    add("1006 客服态度太差了", "1006", "complaint", "handoff", handoff="complaint", notes="投诉")
+    add("1004 再不处理就投诉", "1004", "complaint", "handoff", handoff="complaint", notes="升级投诉")
+    add("1002 我要投诉你们", "1002", "complaint", "handoff", handoff="complaint", notes="投诉")
+    add("转人工", None, "human_request", "handoff", handoff="human_request", notes="人工请求")
+    add("我要人工客服", None, "human_request", "handoff", handoff="human_request", notes="人工请求")
+    add("叫你们主管来", None, "human_request", "handoff", handoff="human_request", notes="人工请求")
+    add("1002 我被骗了，救命", "1002", "emergency", "handoff", handoff="emergency", notes="紧急")
+    add("1001 账号被盗了", "1001", "emergency", "handoff", handoff="emergency", notes="账号安全")
+    add("1003 别人的订单能查吗？", None, "out_of_scope", "answer", notes="越权隐私")
+    add("你们老板电话多少？", None, "out_of_scope", "answer", notes="隐私")
+
+    # 10 clarify/chitchat
+    for message in ["那个怎么样？", "这个能退吗？", "它呢？", "刚才那个订单呢？", "还是那个"]:
+        add(message, None, "needs_clarify", "clarify", notes="指代不明")
+    for message in ["你好", "在吗？", "你是谁？", "谢谢", "你能做什么？"]:
+        add(message, None, "chitchat", "answer", notes="问候/身份")
+
+    assert len(items) == 125, len(items)
+    return items
+
+
+TICKETS.extend(_more_tickets())
+
+
 def facts(order_no: str | None) -> dict | None:
     if not order_no:
         return None
@@ -199,7 +337,7 @@ def build() -> list[dict]:
                 raise SystemExit(f"{tid}: 标为 refund_reject 但规则可直接退")
         rows.append({
             "id": tid,
-            "split": "dev" if index % 3 else "holdout",
+            "split": "holdout" if index % 4 == 3 else "dev",
             "source": "synthetic",
             "scenario_date": SCENARIO_DATE,
             "channel": "web",

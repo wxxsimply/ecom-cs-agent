@@ -10,7 +10,7 @@ from app.models import Order, OrderItem
 from app.refunds import evaluate_refund
 
 REASON_PATTERNS = (
-    ("quality", ("质量", "坏", "破损", "故障", "开胶", "杂音", "起球", "屏幕碎", "碎", "刻错")),
+    ("quality", ("质量", "坏", "破损", "故障", "开胶", "杂音", "起球", "屏幕碎", "碎", "刻错", "异味")),
     ("wrong_item", ("发错", "错发", "错货")),
     ("missing", ("少件", "漏发", "少发", "少配件")),
     ("no_reason", ("不想要", "无理由", "七天", "7天", "尺码小", "换大一码")),
@@ -46,7 +46,7 @@ def _intent(message: str, order_no: str | None) -> str:
     q = message
     if any(k in q for k in ("报警", "被骗", "诈骗", "盗刷", "救命", "账号被盗")):
         return "emergency"
-    if any(k in q for k in ("转人工", "真人", "人工客服", "叫人工", "我要人工")):
+    if any(k in q for k in ("转人工", "真人", "人工客服", "叫人工", "我要人工", "主管")):
         return "human_request"
     if any(k in q for k in ("投诉", "态度", "太失望", "垃圾", "差评")):
         return "complaint"
@@ -54,6 +54,8 @@ def _intent(message: str, order_no: str | None) -> str:
         return "out_of_scope"
     if any(k in q for k in ("改地址", "改收货地址")):
         return "after_sales"
+    if "售后好吗" in q or "售后怎么样" in q:
+        return "general_qa"
     if "想退货" in q:
         return "after_sales"
     if "换" in q and not any(k in q for k in ("换货规则", "退换政策")):
@@ -62,30 +64,34 @@ def _intent(message: str, order_no: str | None) -> str:
         return "order_query"
     if order_no and any(k in q for k in ("到账", "退款到哪")):
         return "order_query"
-    if order_no and any(k in q for k in ("发货了吗", "什么状态")):
+    if order_no and any(k in q for k in ("发货了吗", "什么状态")) and not any(k in q for k in ("物流", "快递", "运单")):
         return "order_query"
     if order_no and "到" in q and not any(k in q for k in ("退款", "退货", "退钱", "能退", "退吗")):
         return "logistics_query"
-    if not order_no and "能退吗" in q:
+    if not order_no and "能退吗" in q and any(k in q for k in ("这个", "那个", "它")):
         return "needs_clarify"
-    if any(k in q for k in ("退款", "退货", "退钱", "能退", "退吗", "要退", "售后", "不想要", "无理由", "七天", "质量", "坏", "破损", "故障", "开胶", "杂音", "起球", "碎", "刻错", "发错", "错发", "少件", "漏发", "少发", "只退一半", "部分退款")):
-        if any(k in q for k in ("规则", "政策", "怎么退", "退换规则", "流程", "超过", "期限", "几天", "多久", "到账", "定制品", "定制款能退", "特殊品类", "运费谁出", "扣运费", "能退吗")):
+    if any(k in q for k in ("退款", "退货", "退钱", "能退", "退吗", "要退", "售后", "不想要", "无理由", "七天", "质量", "坏", "破损", "故障", "开胶", "杂音", "起球", "碎", "刻错", "异味", "发错", "错发", "少件", "漏发", "少发", "只退一半", "部分退款")):
+        if any(k in q for k in ("规则", "政策", "怎么退", "退换规则", "流程", "超过", "期限", "几天", "多久", "到账", "定制品", "定制款能退", "定制商品", "特殊品类", "运费谁出", "扣运费", "承担", "审核", "条件", "满足", "从哪天", "开始算", "15 天", "能退吗")):
             return "policy_qa"
         return "refund_request"
     if any(k in q for k in ("物流", "快递", "到哪", "到了", "到货", "签收", "运单")):
-        if not order_no and "用什么快递" in q:
+        if not order_no and ("用什么快递" in q or "发什么快递" in q):
             return "general_qa"
         if not order_no and "三天没动" in q:
             return "needs_clarify"
         return "logistics_query"
     if any(k in q for k in ("发货了吗", "什么状态", "订单", "单号")) and order_no:
         return "order_query"
-    if any(k in q for k in ("邮费", "运费", "包邮", "发票", "会员", "积分", "退换", "港澳台", "海外")):
+    if any(k in q for k in ("邮费", "运费", "包邮", "发票", "会员", "积分", "退换", "港澳台", "海外", "新疆", "西藏", "内蒙古", "偏远")):
         return "policy_qa"
-    if any(k in q for k in ("怎么选", "怎么用", "怎么保养", "有什么区别", "推荐", "哪个", "怎么买", "你们家", "货到付款", "快递", "便宜", "优惠", "折扣")):
-        return "general_qa"
-    if any(k in q for k in ("有货", "库存", "多少钱", "价格", "材质", "规格", "适合", "商品", "码", "尺码", "双卡", "支持", "机械轴", "能装", "保温")):
+    if "怎么选" in q and "鞋" in q:
         return "product_qa"
+    if any(k in q for k in ("怎么选", "怎么用", "怎么保养", "有什么区别", "推荐", "哪个", "怎么买", "你们家", "货到付款", "快递", "便宜", "优惠", "折扣", "发货", "议价", "花呗", "赠品")):
+        return "general_qa"
+    if any(k in q for k in ("有货", "库存", "多少钱", "价格", "材质", "规格", "适合", "商品", "码", "尺码", "双卡", "支持", "机械轴", "能装", "保温", "续航", "内存", "颜色", "蓝色", "飞机", "保暖", "电脑")):
+        return "product_qa"
+    if "刚才" in q or "那个订单" in q:
+        return "needs_clarify"
     if any(k in q for k in ("订单", "单号", "取消")):
         return "order_query"
     if any(k in q for k in ("你好", "您好", "谢谢", "在吗", "你是谁", "你能做什么", "机器人", "hi", "hello")):

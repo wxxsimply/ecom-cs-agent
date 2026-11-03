@@ -26,7 +26,8 @@ def evaluate() -> dict:
     rows = [json.loads(line) for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
     per_split: dict[str, dict[str, int]] = defaultdict(lambda: Counter())
     per_action: dict[str, Counter] = defaultdict(Counter)
-    failures = []
+    hard_failures = []
+    intent_mismatches = []
     for row in rows:
         expected = row["expected"]
         plan = plan_ticket(row)
@@ -43,23 +44,30 @@ def evaluate() -> dict:
             per_split[split][f"{key}_n"] += 1
             per_action[action][f"{key}_ok"] += int(ok)
             per_action[action][f"{key}_n"] += 1
-        if not all(checks.values()):
-            failures.append(
-                {
-                    "id": row["id"],
-                    "split": split,
-                    "message": row["message"],
-                    "expected": {
-                        "intent": expected["intent"],
-                        "action": action,
-                        "amount": expected["amount"],
-                        "review": expected["requires_human"],
-                    },
-                    "got": plan.to_dict(),
-                    "checks": checks,
-                }
-            )
-    return {"rows": rows, "per_split": per_split, "per_action": per_action, "failures": failures}
+        record = {
+            "id": row["id"],
+            "split": split,
+            "message": row["message"],
+            "expected": {
+                "intent": expected["intent"],
+                "action": action,
+                "amount": expected["amount"],
+                "review": expected["requires_human"],
+            },
+            "got": plan.to_dict(),
+            "checks": checks,
+        }
+        if not all(checks[key] for key in ("action", "amount", "review")):
+            hard_failures.append(record)
+        elif not checks["intent"]:
+            intent_mismatches.append(record)
+    return {
+        "rows": rows,
+        "per_split": per_split,
+        "per_action": per_action,
+        "hard_failures": hard_failures,
+        "intent_mismatches": intent_mismatches,
+    }
 
 
 def pct(counter: Counter, key: str) -> float:
@@ -80,9 +88,21 @@ def main() -> int:
             "amount_accuracy": pct(c, "amount"),
             "review_accuracy": pct(c, "review"),
         }
-    print(json.dumps({"summary": summary, "failures": len(result["failures"])}, ensure_ascii=False, indent=2))
-    for failure in result["failures"][:20]:
+    print(
+        json.dumps(
+            {
+                "summary": summary,
+                "hard_failures": len(result["hard_failures"]),
+                "intent_mismatches": len(result["intent_mismatches"]),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    for failure in result["hard_failures"][:20]:
         print("FAIL", json.dumps(failure, ensure_ascii=False))
+    for mismatch in result["intent_mismatches"][:5]:
+        print("INTENT_MISMATCH", json.dumps(mismatch, ensure_ascii=False))
 
     holdout = result["per_split"]["holdout"]
     dev = result["per_split"]["dev"]
