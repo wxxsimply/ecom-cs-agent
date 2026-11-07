@@ -77,11 +77,78 @@ def get_or_create_session(db: Session, user_id: str, session_id: str | None, tit
     return session
 
 
-def recent_messages(db: Session, session_id: str, limit: int = 12) -> list[Message]:
+def recent_messages(db: Session, session_id: str, limit: int = 12, *, include_empty: bool = True) -> list[Message]:
+    statement = select(Message).where(Message.session_id == session_id)
+    if not include_empty:
+        statement = statement.where(
+            Message.content != "",
+            Message.status.notin_(("streaming", "error")),
+        )
     rows = db.scalars(
-        select(Message).where(Message.session_id == session_id).order_by(Message.created_at.desc()).limit(limit)
+        statement.order_by(Message.created_at.desc(), Message.id.desc()).limit(limit)
     ).all()
     return list(reversed(rows))
+
+
+def estimate_tokens(text: str) -> int:
+    """Conservative estimate for mixed Chinese/ASCII customer-service text."""
+    value = text or ""
+    wide = sum(1 for char in value if ord(char) > 127)
+    narrow = len(value) - wide
+    return wide + (narrow + 3) // 4
+
+
+def conversation_context(
+    db: Session,
+    session_id: str,
+    *,
+    max_turns: int | None = None,
+    max_messages: int | None = None,
+    max_chars: int | None = None,
+    max_tokens: int | None = None,
+    per_message_chars: int | None = None,
+) -> list[dict[str, str]]:
+    """Return a bounded, chronological window without empty assistant placeholders."""
+    max_turns = max_turns or settings.context_max_turns
+    max_messages = max_messages or settings.context_max_messages
+    max_chars = max_chars or settings.context_max_chars
+    max_tokens = max_tokens or settings.context_max_tokens
+    per_message_chars = per_message_chars or settings.context_per_message_chars
+    rows = db.scalars(
+        select(Message)
+        .where(
+            Message.session_id == session_id,
+            Message.content != "",
+            Message.status.notin_(("streaming", "error")),
+        )
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(max_messages * 4)
+    ).all()
+    selected: list[dict[str, str]] = []
+    turns: list[str] = []
+    used_chars = 0
+    used_tokens = 0
+    for row in rows:
+        content = (row.content or "").strip()
+        if not content:
+            continue
+        if len(content) > per_message_chars:
+            content = content[:per_message_chars].rstrip() + "…"
+        content_tokens = estimate_tokens(content)
+        new_turn = row.turn_id not in turns
+        if selected and (
+            len(selected) >= max_messages
+            or used_chars + len(content) > max_chars
+            or used_tokens + content_tokens > max_tokens
+            or (new_turn and len(turns) >= max_turns)
+        ):
+            break
+        selected.append({"role": row.role, "content": content})
+        used_chars += len(content)
+        used_tokens += content_tokens
+        if new_turn:
+            turns.append(row.turn_id)
+    return list(reversed(selected))
 
 
 def recent_orders(db: Session, user_id: str, limit: int = 5) -> list[Order]:

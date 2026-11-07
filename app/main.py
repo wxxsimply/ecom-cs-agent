@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import llm
 from app.after_sales_agent import plan_ticket
 from app.chat import get_pending_interrupt, resume_turn, run_turn
 from app.config import settings
@@ -156,7 +157,23 @@ def startup() -> None:
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "app": settings.app_name, "llm_mode": settings.llm_mode}
+    return {
+        "ok": True,
+        "app": settings.app_name,
+        "llm_requested": settings.llm_mode,
+        "llm_mode": llm.effective_mode(),
+        "llm_configured": llm.is_configured(),
+        "context_version": 1,
+        "context": {
+            "max_turns": settings.context_max_turns,
+            "max_messages": settings.context_max_messages,
+            "max_chars": settings.context_max_chars,
+            "max_tokens": settings.context_max_tokens,
+            "per_message_chars": settings.context_per_message_chars,
+            "summary_max_chars": settings.summary_max_chars,
+        },
+        "output_max_tokens": settings.deepseek_max_tokens,
+    }
 
 
 @app.get("/")

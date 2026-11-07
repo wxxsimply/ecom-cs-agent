@@ -7,11 +7,13 @@ from typing import Literal, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from app import llm
 from app.db import SessionLocal
 from app.intent import classify, extract_order_id, extract_reason, last_order_id, rewrite_query
 from app.knowledge import get_kb
 from app.models import Order
 from app.refunds import RefundDecision, evaluate_refund
+from app.session_state import is_new_topic, load_state, match_pending, pending_expired
 from app.services import (
     create_refund,
     create_ticket,
@@ -57,6 +59,11 @@ class State(TypedDict, total=False):
     rewritten: str
     history: list[dict]
     summary: str
+    session_state: dict
+    pending_slot: dict | None
+    pending_cleared: bool
+    last_order_id: str | None
+    asked_question: str | None
     intent: str
     order_id: str | None
     reason_code: str | None
@@ -83,20 +90,128 @@ def _db_order(db, order_id: str, user_id: str) -> Order | None:
     return order if order and order.user_id == user_id else None
 
 
+def _is_obviously_out_of_scope(query: str) -> bool:
+    return any(
+        keyword in (query or "")
+        for keyword in (
+            "天气",
+            "新闻",
+            "股票",
+            "彩票",
+            "代码",
+            "程序",
+            "论文",
+            "翻译",
+            "头疼",
+            "药",
+            "病",
+            "医生",
+            "治疗",
+            "笑话",
+            "故事",
+            "聊天",
+            "别人",
+            "他人",
+            "改地址",
+        )
+    )
+
+
 def understand(state: State) -> dict:
     query = state.get("query", "")
     history = state.get("history", [])
+    session_state = load_state(state.get("session_state"))
+    pending = session_state.get("pending")
+    pending_match = match_pending(session_state, query)
+    if pending_match:
+        if pending_match["field"] == "reason_code":
+            return {
+                "intent": "refund_request",
+                "order_id": state.get("order_id") or session_state.get("last_order_id") or last_order_id(history),
+                "reason_code": pending_match["value"],
+                "rewritten": rewrite_query(query, history),
+                "pending_cleared": True,
+                "pending_slot": None,
+                "requires_human": False,
+                "cancelled": False,
+                "no_order": False,
+                "session_state": session_state,
+            }
+        if pending_match["field"] == "order_id":
+            return {
+                "intent": "refund_request",
+                "order_id": pending_match["value"],
+                "reason_code": extract_reason(query),
+                "rewritten": rewrite_query(query, history),
+                "pending_cleared": True,
+                "pending_slot": None,
+                "requires_human": False,
+                "cancelled": False,
+                "no_order": False,
+                "session_state": session_state,
+            }
+
+    pending_cleared = False
+    if pending:
+        if pending_expired(pending):
+            pending_cleared = True
+            pending = None
+        elif is_new_topic(query):
+            pending_cleared = True
+            pending = None
+        else:
+            attempts = int(pending.get("attempts", 1))
+            if pending.get("type") == "reason_select" and attempts >= 2:
+                return {
+                    "intent": "human_request",
+                    "order_id": session_state.get("last_order_id") or last_order_id(history),
+                    "reason_code": None,
+                    "rewritten": rewrite_query(query, history),
+                    "pending_cleared": True,
+                    "pending_slot": None,
+                    "requires_human": True,
+                    "cancelled": False,
+                    "no_order": False,
+                    "session_state": session_state,
+                }
+            uses_known_order = pending.get("type") != "order_select"
+            return {
+                "intent": "refund_request",
+                "order_id": (session_state.get("last_order_id") or last_order_id(history)) if uses_known_order else None,
+                "reason_code": None,
+                "rewritten": rewrite_query(query, history),
+                "requires_human": False,
+                "cancelled": False,
+                "no_order": False,
+                "session_state": session_state,
+            }
+
     intent = classify(query, history)
-    order_id = extract_order_id(query) or (last_order_id(history) if any(k in query for k in ("它", "那单", "这单")) else None)
+    rewritten = rewrite_query(query, history)
+    if intent in {"out_of_scope", "needs_clarify"} and history and not _is_obviously_out_of_scope(query):
+        llm_query = llm.rewrite_followup(query, history, session_state, state.get("summary", ""))
+        if llm_query:
+            candidate = classify(llm_query, history)
+            if candidate != "out_of_scope":
+                intent = candidate
+                rewritten = llm_query
+    order_id = extract_order_id(query)
+    if not order_id and (pending or intent in {"order_query", "logistics_query", "refund_request", "after_sales"}):
+        order_id = session_state.get("last_order_id")
+    if not order_id and any(k in query for k in ("它", "那单", "这单")):
+        order_id = last_order_id(history)
     reason = extract_reason(query)
     return {
         "intent": intent,
         "order_id": order_id,
         "reason_code": reason,
-        "rewritten": rewrite_query(query, history),
+        "rewritten": rewritten,
         "requires_human": False,
         "cancelled": False,
         "no_order": False,
+        "pending_cleared": pending_cleared,
+        "pending_slot": None,
+        "session_state": session_state,
     }
 
 
@@ -176,7 +291,7 @@ def tool_execute(state: State) -> dict:
             return {"answer": answer, "status": "ok"}
         order = _db_order(db, state.get("order_id") or "", state["user_id"])
         if order is None:
-            return {"no_order": True}
+            return {"no_order": True, "pending_cleared": True, "pending_slot": None}
         if state.get("intent") == "logistics_query":
             info = logistics_summary(order)
             lines = [f"订单 {order.id} 当前物流状态：{info.get('status')}", ""]
@@ -229,6 +344,9 @@ def rag(state: State) -> dict:
 
 def after_sales_check(state: State) -> dict:
     if not state.get("reason_code"):
+        session_state = load_state(state.get("session_state"))
+        pending = session_state.get("pending") or {}
+        attempts = int(pending.get("attempts", 0)) + 1 if pending.get("type") == "reason_select" else 1
         return {
             "answer": (
                 "可以，我先帮你判断退款/退货资格。请问是以下哪种情况：\n"
@@ -238,11 +356,18 @@ def after_sales_check(state: State) -> dict:
                 "你回一个关键词即可，我再给你具体金额和下一步。"
             ),
             "status": "ok",
+            "pending_slot": {
+                "type": "reason_select",
+                "field": "reason_code",
+                "allowed": ["quality", "wrong_item", "missing", "no_reason", "other"],
+                "attempts": attempts,
+            },
+            "asked_question": "reason_select",
         }
     with SessionLocal() as db:
         order = _db_order(db, state.get("order_id") or "", state["user_id"])
         if order is None:
-            return {"no_order": True}
+            return {"no_order": True, "pending_cleared": True, "pending_slot": None}
         decision = evaluate_refund(order, state.get("reason_code") or "other")
     payload = {
         "eligible": decision.eligible,
@@ -255,11 +380,11 @@ def after_sales_check(state: State) -> dict:
         "policy_snapshot": decision.policy_snapshot,
     }
     if decision.requires_human:
-        return {"decision": payload, "requires_human": True, "status": "handoff"}
+        return {"decision": payload, "requires_human": True, "status": "handoff", "pending_cleared": True, "pending_slot": None}
     if not decision.eligible:
         reasons = "；".join(decision.reasons)
-        return {"decision": payload, "answer": f"这笔订单暂时无法直接退款：{reasons}。如需申诉，我可以帮你转人工。", "status": "refused"}
-    return {"decision": payload, "pending_action": payload}
+        return {"decision": payload, "answer": f"这笔订单暂时无法直接退款：{reasons}。如需申诉，我可以帮你转人工。", "status": "refused", "pending_cleared": True, "pending_slot": None}
+    return {"decision": payload, "pending_action": payload, "pending_cleared": True, "pending_slot": None}
 
 
 def confirm_action(state: State) -> dict:

@@ -637,6 +637,20 @@
   $("closeSidebarBtn").addEventListener("click", () => $("sidebar").classList.remove("open"));
   $("menuBtn").addEventListener("click", () => $("sidebar").classList.toggle("open"));
 
+  const root = document.documentElement;
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Tab") root.classList.add("kbd-nav");
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointerdown",
+    () => root.classList.remove("kbd-nav"),
+    true,
+  );
+
   els.userIdLabel.textContent = state.userId;
   loadSessions();
   if (state.sessionId) openSession(state.sessionId);

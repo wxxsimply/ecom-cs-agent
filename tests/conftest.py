@@ -7,3 +7,7 @@ os.environ["APP_DB_PATH"] = str(ROOT / "test.db")
 os.environ["CHECKPOINT_DB"] = str(ROOT / "checkpoints.db")
 os.environ["KNOWLEDGE_DIR"] = str(Path(__file__).resolve().parent.parent / "data" / "knowledge")
 os.environ["DEMO_USER_ID"] = "u_demo"
+os.environ["LLM_MODE"] = "mock"
+os.environ["DEEPSEEK_API_KEY"] = ""
+os.environ["DEEPSEEK_BASE_URL"] = ""
+os.environ["DEEPSEEK_MODEL"] = ""

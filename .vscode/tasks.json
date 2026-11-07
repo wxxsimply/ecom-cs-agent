@@ -16,7 +16,7 @@
       "problemMatcher": []
     },
     {
-      "label": "eval: 75 tickets",
+      "label": "eval: 200 tickets",
       "type": "shell",
       "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": ["scripts/eval_tickets.py"],

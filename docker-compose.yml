@@ -8,7 +8,11 @@ services:
       CHECKPOINT_DB: /app/dbdata/checkpoints.db
       KNOWLEDGE_DIR: /app/data/knowledge
       DEMO_USER_ID: u_demo
-      LLM_MODE: mock
+      LLM_MODE: ${LLM_MODE:-mock}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_API_STYLE: ${DEEPSEEK_API_STYLE:-auto}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
     volumes:
       - mewhelp_data:/app/dbdata
     restart: unless-stopped

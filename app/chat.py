@@ -12,8 +12,9 @@ from langgraph.types import Command
 from app.config import settings
 from app.db import SessionLocal, loads, utcnow
 from app.graph import State, build_graph
-from app.models import ChatInterrupt, ChatSession, Message
-from app.services import get_or_create_session, recent_messages, recent_orders, order_summary
+from app.models import ChatInterrupt, ChatSession
+from app.services import conversation_context, recent_orders, order_summary
+from app.session_state import build_summary, clear_pending, dump_state, load_state, record_turn, set_pending
 
 _conn = sqlite3.connect(settings.checkpoint_path, check_same_thread=False)
 checkpointer = SqliteSaver(_conn)
@@ -33,8 +34,9 @@ class TurnResult:
 
 
 def _state_for(db, session: ChatSession, turn_id: str, user_id: str, query: str) -> State:
-    history = [{"role": m.role, "content": m.content} for m in recent_messages(db, session.id, limit=12)]
+    history = conversation_context(db, session.id)
     orders = [order_summary(o) for o in recent_orders(db, user_id, limit=5)]
+    session_state = load_state(session.state_json)
     return {
         "session_id": session.id,
         "turn_id": turn_id,
@@ -43,9 +45,55 @@ def _state_for(db, session: ChatSession, turn_id: str, user_id: str, query: str)
         "query": query,
         "history": history,
         "summary": session.summary or "",
+        "session_state": session_state,
+        "pending_slot": session_state.get("pending"),
+        "last_order_id": session_state.get("last_order_id"),
         "recent_orders": orders,
         "status": "ok",
     }
+
+
+def _persist_state(
+    session_id: str,
+    turn_id: str,
+    result: dict,
+    *,
+    interrupt_payload: dict | None = None,
+    answer: str = "",
+    history: list[dict] | None = None,
+) -> None:
+    with SessionLocal() as db:
+        session = db.get(ChatSession, session_id)
+        if session is None:
+            return
+        state = load_state(session.state_json)
+        record_turn(
+            state,
+            turn_id=turn_id,
+            intent=result.get("intent"),
+            order_id=result.get("order_id"),
+            reason_code=result.get("reason_code"),
+            pending_slot=result.get("pending_slot"),
+            pending_cleared=bool(result.get("pending_cleared")),
+            asked_question=result.get("asked_question"),
+        )
+        if interrupt_payload:
+            interrupt_type = interrupt_payload.get("type")
+            if interrupt_type == "order_select":
+                set_pending(state, "order_select", field="order_id", turn_id=turn_id, attempts=1)
+            elif interrupt_type == "confirm_refund":
+                clear_pending(state)
+                if interrupt_payload.get("order_id"):
+                    state["last_order_id"] = interrupt_payload["order_id"]
+        session.state_json = dump_state(state)
+        session.updated_at = utcnow()
+        turn_count = int(state.get("turn_count", 0))
+        trigger = max(1, settings.summary_trigger_turns)
+        if answer and (turn_count % trigger == 0 or (not session.summary and turn_count >= 2)):
+            messages = list(history or conversation_context(db, session_id))
+            messages.append({"role": "assistant", "content": answer})
+            session.summary = build_summary(messages, state)[: settings.summary_max_chars]
+        db.commit()
 
 
 def run_turn(session: ChatSession, user_id: str, query: str, turn_id: str) -> TurnResult:
@@ -69,12 +117,10 @@ def run_turn(session: ChatSession, user_id: str, query: str, turn_id: str) -> Tu
                 expires_at=utcnow() + timedelta(seconds=settings.interrupt_ttl_seconds),
             )
             db.add(row)
-            sess = db.get(ChatSession, session.id)
-            if sess:
-                sess.state_json = json.dumps({"pending_interrupt_id": payload["interrupt_id"]}, ensure_ascii=False)
-                sess.updated_at = utcnow()
             db.commit()
+        _persist_state(session.id, turn_id, result, interrupt_payload=payload)
         return TurnResult(status="interrupt", interrupt=payload)
+    _persist_state(session.id, turn_id, result, answer=str(result.get("answer") or ""), history=state.get("history"))
     return TurnResult(
         status=str(result.get("status") or "ok"),
         answer=str(result.get("answer") or ""),
@@ -123,12 +169,19 @@ def resume_turn(session: ChatSession, user_id: str, interrupt_id: str, value: di
                 )
             )
             db.commit()
+        _persist_state(session.id, turn_id, result, interrupt_payload=next_payload)
         return TurnResult(status="interrupt", interrupt=next_payload)
     with SessionLocal() as db:
         row = db.get(ChatInterrupt, interrupt_id)
         if row:
             row.status = "done"
         db.commit()
+    _persist_state(
+        session.id,
+        turn_id,
+        result,
+        answer=str(result.get("answer") or ""),
+    )
     return TurnResult(
         status=str(result.get("status") or "ok"),
         answer=str(result.get("answer") or ""),
